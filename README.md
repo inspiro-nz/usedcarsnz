@@ -20,6 +20,25 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Lead capture setup
+
+This app sends pilot form submissions by email using Resend. To enable it, add the following environment variables:
+
+```bash
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL="UsedCarsNZ <no-reply@usedcarsnz.co.nz>"
+LEAD_EMAIL=inspiroanalytics@gmail.com
+```
+
+Then install dependencies and run the project:
+
+```bash
+npm install
+npm run dev
+```
+
+If you deploy on Vercel, add `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `LEAD_EMAIL` to your project environment variables.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

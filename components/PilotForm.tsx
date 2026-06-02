@@ -57,14 +57,45 @@ function SuccessState() {
 }
 
 export default function PilotForm() {
-  const [submitted, setSubmitted] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setSubmitted(true)
+    setStatus('loading')
+    setErrorMessage(null)
+
+    const formData = new FormData(e.currentTarget)
+    const payload = {
+      name: String(formData.get('name') ?? '').trim(),
+      dealership: String(formData.get('dealership') ?? '').trim(),
+      email: String(formData.get('email') ?? '').trim(),
+      phone: String(formData.get('phone') ?? '').trim(),
+      enquiries: String(formData.get('enquiries') ?? '').trim(),
+    }
+
+    try {
+      const response = await fetch('/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const body = await response.json()
+      if (!response.ok) {
+        setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')
+        setStatus('error')
+        return
+      }
+
+      setStatus('success')
+    } catch (error) {
+      setErrorMessage('Network error. Please try again later.')
+      setStatus('error')
+    }
   }
 
-  if (submitted) return <SuccessState />
+  if (status === 'success') return <SuccessState />
 
   return (
     <section id="join" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900">
@@ -83,7 +114,11 @@ export default function PilotForm() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 sm:p-8 space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          aria-live="polite"
+          className="bg-white rounded-2xl p-6 sm:p-8 space-y-5"
+        >
           <div className="grid sm:grid-cols-2 gap-5">
             <InputField
               id="name"
@@ -145,12 +180,19 @@ export default function PilotForm() {
             </div>
           </div>
 
+          {status === 'error' && errorMessage ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
           <div className="pt-1">
             <button
               type="submit"
-              className="w-full py-4 bg-orange-500 text-white font-bold text-lg rounded-xl hover:bg-orange-600 active:bg-orange-700 transition-colors shadow-lg shadow-orange-200"
+              disabled={status === 'loading'}
+              className="w-full py-4 bg-orange-500 text-white font-bold text-lg rounded-xl hover:bg-orange-600 active:bg-orange-700 transition-colors shadow-lg shadow-orange-200 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Join the Christchurch Pilot
+              {status === 'loading' ? 'Sending...' : 'Join the Christchurch Pilot'}
             </button>
             <p className="text-center text-xs text-slate-400 mt-3">
               No credit card. No commitment. We will reach out to book a free onboarding call.

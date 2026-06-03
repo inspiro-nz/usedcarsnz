@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react'
 declare global {
   interface Window {
     turnstile: {
-      render: (selector: string, options: Record<string, unknown>) => string
+      render: (selector: string | HTMLElement, options: Record<string, unknown>) => string
       reset: (widgetId?: string) => void
       remove: (widgetId?: string) => void
       getResponse: (widgetId?: string) => string
@@ -73,11 +73,13 @@ export default function PilotForm() {
   const [turnstileLoaded, setTurnstileLoaded] = useState(false)
   const [siteKey, setSiteKey] = useState<string | null>(null)
   const [loadingSiteKey, setLoadingSiteKey] = useState(true)
-  const turnstileWidgetRef = useRef<string | null>(null)
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null)
+  const turnstileWidgetIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     async function fetchSiteKey() {
       try {
+        console.info('Fetching Turnstile site key...')
         const response = await fetch('/api/turnstile-key')
         const body = await response.json()
 
@@ -85,6 +87,7 @@ export default function PilotForm() {
           throw new Error(body?.error || 'Turnstile site key unavailable')
         }
 
+        console.info('Turnstile site key loaded')
         setSiteKey(String(body.siteKey))
       } catch (error) {
         console.error('Failed to fetch Turnstile site key:', error)
@@ -99,44 +102,68 @@ export default function PilotForm() {
 
   useEffect(() => {
     if (!siteKey) return
+    if (!turnstileContainerRef.current) {
+      console.info('Waiting for Turnstile container to mount')
+      return
+    }
 
+    console.info('Loading Turnstile script...')
     const script = document.createElement('script')
     script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
     script.async = true
     script.defer = true
 
     script.onload = () => {
+      console.info('Turnstile script loaded')
+
       if (!window.turnstile) {
-        console.error('Turnstile script loaded but no window.turnstile available')
+        console.error('Turnstile script loaded but window.turnstile is unavailable')
         setErrorMessage('Security verification failed. Please refresh and try again.')
-        setTurnstileLoaded(true)
+        setTurnstileLoaded(false)
         return
       }
 
-      const widgetId = window.turnstile.render('#turnstile-widget', {
-        sitekey: siteKey,
-        theme: 'light',
-        'error-callback': () => {
-          setErrorMessage('Security verification failed. Please refresh and try again.')
-        },
-      })
+      if (!turnstileContainerRef.current) {
+        console.error('Turnstile container missing at render time')
+        setErrorMessage('Security verification failed. Please refresh and try again.')
+        setTurnstileLoaded(false)
+        return
+      }
 
-      turnstileWidgetRef.current = widgetId
-      setTurnstileLoaded(true)
+      try {
+        console.info('Rendering Turnstile widget')
+        const widgetId = window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: siteKey,
+          theme: 'light',
+          'error-callback': () => {
+            console.error('Turnstile error callback triggered')
+            setErrorMessage('Security verification failed. Please refresh and try again.')
+            setTurnstileLoaded(false)
+          },
+        })
+
+        turnstileWidgetIdRef.current = widgetId
+        setTurnstileLoaded(true)
+        console.info('Turnstile widget rendered successfully', widgetId)
+      } catch (error) {
+        console.error('Failed to render Turnstile widget:', error)
+        setErrorMessage('Security verification failed. Please refresh and try again.')
+        setTurnstileLoaded(false)
+      }
     }
 
     script.onerror = () => {
       console.error('Failed to load Turnstile script')
       setErrorMessage('Security verification failed. Please refresh and try again.')
-      setTurnstileLoaded(true)
+      setTurnstileLoaded(false)
     }
 
     document.head.appendChild(script)
 
     return () => {
       document.head.removeChild(script)
-      if (window.turnstile && turnstileWidgetRef.current) {
-        window.turnstile.remove(turnstileWidgetRef.current)
+      if (window.turnstile && turnstileWidgetIdRef.current) {
+        window.turnstile.remove(turnstileWidgetIdRef.current)
       }
     }
   }, [siteKey])
@@ -146,7 +173,7 @@ export default function PilotForm() {
     setStatus('loading')
     setErrorMessage(null)
 
-    const token = window.turnstile?.getResponse(turnstileWidgetRef.current || undefined) || ''
+    const token = window.turnstile?.getResponse(turnstileWidgetIdRef.current || undefined) || ''
     if (!token && siteKey) {
       setErrorMessage('Security verification failed. Please try again.')
       setStatus('error')
@@ -176,18 +203,19 @@ export default function PilotForm() {
       if (!response.ok) {
         setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')
         setStatus('error')
-        if (turnstileWidgetRef.current) {
-          window.turnstile?.reset(turnstileWidgetRef.current)
+        if (turnstileWidgetIdRef.current) {
+          window.turnstile?.reset(turnstileWidgetIdRef.current)
         }
         return
       }
 
       setStatus('success')
     } catch (error) {
+      console.error('Lead submission failed:', error)
       setErrorMessage('Network error. Please try again later.')
       setStatus('error')
-      if (turnstileWidgetRef.current) {
-        window.turnstile?.reset(turnstileWidgetRef.current)
+      if (turnstileWidgetIdRef.current) {
+        window.turnstile?.reset(turnstileWidgetIdRef.current)
       }
     }
   }
@@ -294,8 +322,8 @@ export default function PilotForm() {
             aria-hidden="true"
           />
 
-          {siteKey && turnstileLoaded ? (
-            <div id="turnstile-widget" className="flex justify-center" />
+          {siteKey ? (
+            <div ref={turnstileContainerRef} id="turnstile-widget" className="flex justify-center" />
           ) : null}
 
           {status === 'error' && errorMessage ? (

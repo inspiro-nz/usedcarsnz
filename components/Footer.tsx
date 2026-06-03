@@ -41,21 +41,21 @@ export default function Footer() {
 
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Pilot
+              Program
             </p>
             <a
               href="#join"
               className="text-sm text-orange-400 hover:text-orange-300 font-medium transition-colors"
             >
-              Join the Christchurch Pilot
+              Join the Founding Dealer Program
             </a>
-            <p className="text-sm">Christchurch, New Zealand</p>
+            <p className="text-sm">New Zealand dealerships welcome</p>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <p>&copy; {year} UsedCarsNZ. All rights reserved.</p>
-          <p>Built for Christchurch dealerships.</p>
+          <p>Built for New Zealand dealerships.</p>
         </div>
       </div>
     </footer>

@@ -18,11 +18,11 @@ export const metadata: Metadata = {
     template: "%s | UsedCarsNZ",
   },
   description:
-    "Christchurch pilot for dealerships to capture more vehicle enquiries with faster response times.",
+    "UsedCarsNZ Founding Dealer Program for New Zealand dealerships that want faster enquiry response and more sales opportunities.",
   openGraph: {
-    title: "UsedCarsNZ Christchurch Pilot",
+    title: "UsedCarsNZ Founding Dealer Program",
     description:
-      "Help your dealership respond faster to vehicle enquiries and win more buyers.",
+      "Help your dealership respond faster to vehicle enquiries and win more buyers across New Zealand.",
     type: "website",
   },
   twitter: {

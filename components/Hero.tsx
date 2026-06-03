@@ -1,7 +1,7 @@
 const stats = [
   { value: '< 2 min', label: 'Target response time' },
-  { value: 'Free', label: 'For pilot members' },
-  { value: '10–15', label: 'Pilot spots in Christchurch' },
+  { value: 'Free', label: 'For founding members' },
+  { value: '10', label: 'Limited dealer spots' },
 ]
 
 export default function Hero() {
@@ -19,17 +19,17 @@ export default function Hero() {
       <div className="relative max-w-4xl mx-auto text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-medium rounded-full mb-8">
           <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" aria-hidden="true" />
-          Christchurch Pilot — Now Open
+          Founding Dealer Program — Limited Availability
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
-          Stop Losing Vehicle Enquiries
-          <span className="block text-orange-400 mt-1">to Slow Response Times</span>
+          Help every enquiry get a professional response,
+          <span className="block text-orange-400 mt-1">even after hours.</span>
         </h1>
 
         <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-          UsedCarsNZ helps dealerships respond faster to buyer enquiries before
-          the opportunity disappears.
+          UsedCarsNZ helps New Zealand dealerships capture more buyer enquiries with
+          faster responses and smarter follow-up.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -37,7 +37,7 @@ export default function Hero() {
             href="#join"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white font-bold text-lg rounded-xl hover:bg-orange-600 active:bg-orange-700 transition-colors shadow-lg"
           >
-            Join the Christchurch Pilot
+            Join the Founding Dealer Program
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>

@@ -19,9 +19,9 @@ const faqs = [
       "Email gets buried. By the time you see an enquiry, it may be hours old. UsedCarsNZ delivers real-time alerts so you can respond in minutes, not hours or the next business day. Speed is the entire point.",
   },
   {
-    question: 'What does the Christchurch pilot involve?',
+    question: 'What does the Founding Dealer Program involve?',
     answer:
-      "The pilot is a limited-access programme for Christchurch dealerships. You get free setup, dedicated support, and direct input into the product roadmap. In return, we ask for honest feedback as we refine the platform. There are no fees during the pilot.",
+      "The Founding Dealer Program is a limited-access membership for New Zealand dealerships. You get early access to new features, dedicated support, and direct influence over development. In return, we ask for honest feedback so the platform works for dealers nationwide.",
   },
   {
     question: 'Do I need to change how my dealership operates?',
@@ -29,9 +29,9 @@ const faqs = [
       "Minimal change required. UsedCarsNZ fits into your existing workflow — you don't need to migrate listings, change your website, or retrain staff on a new CRM. We work with what you already have.",
   },
   {
-    question: 'How many pilot spots are available?',
+    question: 'How many Founding Dealer Program spots are available?',
     answer:
-      "We are keeping the Christchurch pilot small — around 10–15 dealerships — so we can provide hands-on support to each one. Spots are limited, so we recommend registering your interest now.",
+      "The program is limited to the first 10 dealerships nationwide so we can provide hands-on support and build a better product for all NZ dealers.",
   },
 ]
 
@@ -79,7 +79,7 @@ export default function FAQ() {
             Frequently Asked Questions
           </h2>
           <p className="text-lg text-slate-500">
-            Everything you need to know before joining the pilot.
+            Everything you need to know before joining the Founding Dealer Program.
           </p>
         </div>
 

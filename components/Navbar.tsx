@@ -37,7 +37,7 @@ export default function Navbar() {
               href="#join"
               className="hidden sm:inline-flex items-center px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 transition-colors"
             >
-              Join Pilot
+              Join Program
             </a>
             <button
               type="button"
@@ -77,7 +77,7 @@ export default function Navbar() {
               onClick={() => setIsOpen(false)}
               className="mt-2 flex items-center justify-center px-4 py-3 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 transition-colors"
             >
-              Join the Christchurch Pilot
+              Join the Founding Dealer Program
             </a>
           </div>
         )}

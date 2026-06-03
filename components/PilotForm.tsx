@@ -1,6 +1,17 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
+
+declare global {
+  interface Window {
+    turnstile: {
+      render: (selector: string, options: Record<string, unknown>) => string
+      reset: (widgetId?: string) => void
+      remove: (widgetId?: string) => void
+      getResponse: (widgetId?: string) => string
+    }
+  }
+}
 
 const enquiryOptions = ['Under 20', '20–50', '50–100', '100–200', '200+']
 
@@ -48,7 +59,7 @@ function SuccessState() {
         </div>
         <h2 className="text-3xl font-bold text-white mb-4">You are on the list!</h2>
         <p className="text-slate-300 text-lg leading-relaxed">
-          Thanks for your interest in the Christchurch pilot. We will be in touch
+          Thanks for your interest in the Founding Dealer Program. We will be in touch
           shortly to get you set up with a free onboarding call.
         </p>
       </div>
@@ -59,11 +70,62 @@ function SuccessState() {
 export default function PilotForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [turnstileLoaded, setTurnstileLoaded] = useState(false)
+  const turnstileWidgetRef = useRef<string | null>(null)
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
+
+  // Load Turnstile script on component mount
+  useEffect(() => {
+    if (!siteKey) {
+      console.warn('NEXT_PUBLIC_TURNSTILE_SITE_KEY not configured')
+      setTurnstileLoaded(true)
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    script.async = true
+    script.defer = true
+
+    script.onload = () => {
+      if (window.turnstile) {
+        // Render Turnstile widget
+        const widgetId = window.turnstile.render('#turnstile-widget', {
+          sitekey: siteKey,
+          theme: 'light',
+          'error-callback': () => {
+            setErrorMessage('Security verification failed. Please refresh and try again.')
+          },
+        })
+        turnstileWidgetRef.current = widgetId
+        setTurnstileLoaded(true)
+      }
+    }
+
+    script.onerror = () => {
+      console.error('Failed to load Turnstile script')
+      setTurnstileLoaded(true) // Allow form to submit anyway
+    }
+
+    document.head.appendChild(script)
+
+    return () => {
+      document.head.removeChild(script)
+    }
+  }, [siteKey])
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setStatus('loading')
     setErrorMessage(null)
+
+    // Get Turnstile token
+    const token = window.turnstile?.getResponse() || ''
+    if (!token && siteKey) {
+      setErrorMessage('Security verification failed. Please try again.')
+      setStatus('error')
+      return
+    }
 
     const formData = new FormData(e.currentTarget)
     const payload = {
@@ -72,6 +134,8 @@ export default function PilotForm() {
       email: String(formData.get('email') ?? '').trim(),
       phone: String(formData.get('phone') ?? '').trim(),
       enquiries: String(formData.get('enquiries') ?? '').trim(),
+      website: String(formData.get('website') ?? '').trim(), // Honeypot field
+      token,
     }
 
     try {
@@ -82,9 +146,14 @@ export default function PilotForm() {
       })
 
       const body = await response.json()
+
       if (!response.ok) {
         setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')
         setStatus('error')
+        // Reset Turnstile widget for retry
+        if (turnstileWidgetRef.current) {
+          window.turnstile?.reset(turnstileWidgetRef.current)
+        }
         return
       }
 
@@ -92,6 +161,10 @@ export default function PilotForm() {
     } catch (error) {
       setErrorMessage('Network error. Please try again later.')
       setStatus('error')
+      // Reset Turnstile widget for retry
+      if (turnstileWidgetRef.current) {
+        window.turnstile?.reset(turnstileWidgetRef.current)
+      }
     }
   }
 
@@ -103,10 +176,10 @@ export default function PilotForm() {
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-medium rounded-full mb-5">
             <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" aria-hidden="true" />
-            Limited Spots Available
+            Limited to the first 10 dealerships
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-            Join the Christchurch Pilot
+            Join the Founding Dealer Program
           </h2>
           <p className="text-slate-300 text-lg leading-relaxed">
             Get early access, free setup support, and help shape the product that
@@ -148,6 +221,7 @@ export default function PilotForm() {
               type="tel"
               placeholder="021 123 4567"
               autoComplete="tel"
+              required={false}
             />
           </div>
 
@@ -180,6 +254,21 @@ export default function PilotForm() {
             </div>
           </div>
 
+          {/* Honeypot field - hidden from users */}
+          <input
+            type="text"
+            name="website"
+            style={{ display: 'none' }}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
+
+          {/* Turnstile widget */}
+          {turnstileLoaded && siteKey && (
+            <div id="turnstile-widget" className="flex justify-center" />
+          )}
+
           {status === 'error' && errorMessage ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {errorMessage}
@@ -189,13 +278,13 @@ export default function PilotForm() {
           <div className="pt-1">
             <button
               type="submit"
-              disabled={status === 'loading'}
+              disabled={status === 'loading' || (turnstileLoaded && !turnstileLoaded)}
               className="w-full py-4 bg-orange-500 text-white font-bold text-lg rounded-xl hover:bg-orange-600 active:bg-orange-700 transition-colors shadow-lg shadow-orange-200 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {status === 'loading' ? 'Sending...' : 'Join the Christchurch Pilot'}
+              {status === 'loading' ? 'Sending...' : 'Join the Founding Dealer Program'}
             </button>
             <p className="text-center text-xs text-slate-400 mt-3">
-              No credit card. No commitment. We will reach out to book a free onboarding call.
+              Protected by Cloudflare Turnstile. No credit card. No commitment.
             </p>
           </div>
         </form>

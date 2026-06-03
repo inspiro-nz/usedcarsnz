@@ -360,7 +360,7 @@ Score each category from 1–5.
 
 | Score | Meaning |
 |---------|---------|
-| 40–50 | Pilot candidate |
+| 40–50 | Founding Dealer Program candidate |
 | 30–39 | Strong prospect |
 | 20–29 | Keep warm |
 | Below 20 | Low priority |
@@ -473,7 +473,7 @@ Conditions Required:
 
 **Recommendation:**
 
-- Pilot Candidate
+- Founding Dealer Program candidate
 - Follow Up
 - Not Suitable
 
@@ -502,7 +502,7 @@ Proceed to MVP build if:
 - Average enquiry volume supports the conversion model.
 - 3/5 dealers agree to trial.
 - 2+ dealers indicate willingness to pay after proven results.
-- 2+ dealers volunteer for a pilot.
+- 2+ dealers volunteer for the Founding Dealer Program.
 
 ---
 
@@ -513,7 +513,7 @@ Proceed to MVP build if:
 | Trade Me frustration | 4/5 dealers | |
 | Response-time pain | 3/5 dealers | |
 | Trial interest | 3/5 dealers | |
-| Pilot participants | 2+ dealers | |
+| Founding Dealer Program participants | 2+ dealers | |
 | Willingness to pay | 2+ dealers | |
 | Sufficient enquiry volume | Majority | |
 | Build recommendation | Pass / Fail | |

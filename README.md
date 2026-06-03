@@ -22,7 +22,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Lead capture setup
 
-This app sends pilot form submissions by email using Resend. To enable it, add the following environment variables:
+This app sends Founding Dealer Program form submissions by email using Resend. To enable it, add the following environment variables:
 
 ```bash
 RESEND_API_KEY=your_resend_api_key

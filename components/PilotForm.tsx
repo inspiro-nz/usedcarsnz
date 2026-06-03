@@ -2,16 +2,8 @@
 
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 
-declare global {
-  interface Window {
-    turnstile: {
-      render: (selector: string | HTMLElement, options: Record<string, unknown>) => string
-      reset: (widgetId?: string) => void
-      remove: (widgetId?: string) => void
-      getResponse: (widgetId?: string) => string
-    }
-  }
-}
+// NEXT_PUBLIC_ vars are inlined at build time — no API call needed
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
 
 const enquiryOptions = ['Under 20', '20–50', '50–100', '100–200', '200+']
 
@@ -71,111 +63,63 @@ export default function PilotForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [turnstileLoaded, setTurnstileLoaded] = useState(false)
-  const [siteKey, setSiteKey] = useState<string | null>(null)
-  const [loadingSiteKey, setLoadingSiteKey] = useState(true)
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null)
   const turnstileWidgetIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    async function fetchSiteKey() {
-      try {
-        console.info('Fetching Turnstile site key...')
-        const response = await fetch('/api/turnstile-key')
-        const body = await response.json()
+    if (!TURNSTILE_SITE_KEY || !turnstileContainerRef.current) return
 
-        if (!response.ok || !body?.siteKey) {
-          throw new Error(body?.error || 'Turnstile site key unavailable')
-        }
-
-        console.info('Turnstile site key loaded')
-        setSiteKey(String(body.siteKey))
-      } catch (error) {
-        console.error('Failed to fetch Turnstile site key:', error)
-        setErrorMessage('Security setup incomplete. Please refresh the page or contact support.')
-      } finally {
-        setLoadingSiteKey(false)
-      }
-    }
-
-    fetchSiteKey()
-  }, [])
-
-  useEffect(() => {
-    if (!siteKey) return
-    if (!turnstileContainerRef.current) {
-      console.info('Waiting for Turnstile container to mount')
-      return
-    }
-
-    console.info('Loading Turnstile script...')
     const script = document.createElement('script')
     script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
     script.async = true
     script.defer = true
 
     script.onload = () => {
-      console.info('Turnstile script loaded')
-
-      if (!window.turnstile) {
-        console.error('Turnstile script loaded but window.turnstile is unavailable')
+      if (!window.turnstile || !turnstileContainerRef.current) {
         setErrorMessage('Security verification failed. Please refresh and try again.')
-        setTurnstileLoaded(false)
-        return
-      }
-
-      if (!turnstileContainerRef.current) {
-        console.error('Turnstile container missing at render time')
-        setErrorMessage('Security verification failed. Please refresh and try again.')
-        setTurnstileLoaded(false)
         return
       }
 
       try {
-        console.info('Rendering Turnstile widget')
         const widgetId = window.turnstile.render(turnstileContainerRef.current, {
-          sitekey: siteKey,
+          sitekey: TURNSTILE_SITE_KEY,
           theme: 'light',
           'error-callback': () => {
-            console.error('Turnstile error callback triggered')
             setErrorMessage('Security verification failed. Please refresh and try again.')
             setTurnstileLoaded(false)
           },
         })
-
         turnstileWidgetIdRef.current = widgetId
         setTurnstileLoaded(true)
-        console.info('Turnstile widget rendered successfully', widgetId)
       } catch (error) {
         console.error('Failed to render Turnstile widget:', error)
         setErrorMessage('Security verification failed. Please refresh and try again.')
-        setTurnstileLoaded(false)
       }
     }
 
     script.onerror = () => {
       console.error('Failed to load Turnstile script')
       setErrorMessage('Security verification failed. Please refresh and try again.')
-      setTurnstileLoaded(false)
     }
 
     document.head.appendChild(script)
 
     return () => {
-      document.head.removeChild(script)
+      if (document.head.contains(script)) document.head.removeChild(script)
       if (window.turnstile && turnstileWidgetIdRef.current) {
         window.turnstile.remove(turnstileWidgetIdRef.current)
       }
     }
-  }, [siteKey])
+  }, [])
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setStatus('loading')
     setErrorMessage(null)
 
-    const token = window.turnstile?.getResponse(turnstileWidgetIdRef.current || undefined) || ''
-    if (!token && siteKey) {
-      setErrorMessage('Security verification failed. Please try again.')
+    const token = window.turnstile?.getResponse(turnstileWidgetIdRef.current ?? undefined) ?? ''
+    if (!token) {
+      setErrorMessage('Please complete the security verification.')
       setStatus('error')
       return
     }
@@ -203,9 +147,7 @@ export default function PilotForm() {
       if (!response.ok) {
         setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')
         setStatus('error')
-        if (turnstileWidgetIdRef.current) {
-          window.turnstile?.reset(turnstileWidgetIdRef.current)
-        }
+        if (turnstileWidgetIdRef.current) window.turnstile?.reset(turnstileWidgetIdRef.current)
         return
       }
 
@@ -214,19 +156,13 @@ export default function PilotForm() {
       console.error('Lead submission failed:', error)
       setErrorMessage('Network error. Please try again later.')
       setStatus('error')
-      if (turnstileWidgetIdRef.current) {
-        window.turnstile?.reset(turnstileWidgetIdRef.current)
-      }
+      if (turnstileWidgetIdRef.current) window.turnstile?.reset(turnstileWidgetIdRef.current)
     }
   }
 
   if (status === 'success') return <SuccessState />
 
-  const isSubmitDisabled =
-    status === 'loading' ||
-    loadingSiteKey ||
-    (!!siteKey && !turnstileLoaded) ||
-    !siteKey
+  const isSubmitDisabled = status === 'loading' || (!!TURNSTILE_SITE_KEY && !turnstileLoaded)
 
   return (
     <section id="join" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900">
@@ -251,36 +187,13 @@ export default function PilotForm() {
           className="bg-white rounded-2xl p-6 sm:p-8 space-y-5"
         >
           <div className="grid sm:grid-cols-2 gap-5">
-            <InputField
-              id="name"
-              label="Your Name"
-              placeholder="John Smith"
-              autoComplete="name"
-            />
-            <InputField
-              id="dealership"
-              label="Dealership Name"
-              placeholder="ABC Motors"
-              autoComplete="organization"
-            />
+            <InputField id="name" label="Your Name" placeholder="John Smith" autoComplete="name" />
+            <InputField id="dealership" label="Dealership Name" placeholder="ABC Motors" autoComplete="organization" />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
-            <InputField
-              id="email"
-              label="Email Address"
-              type="email"
-              placeholder="john@abcmotors.co.nz"
-              autoComplete="email"
-            />
-            <InputField
-              id="phone"
-              label="Phone Number"
-              type="tel"
-              placeholder="021 123 4567"
-              autoComplete="tel"
-              required={false}
-            />
+            <InputField id="email" label="Email Address" type="email" placeholder="john@abcmotors.co.nz" autoComplete="email" />
+            <InputField id="phone" label="Phone Number" type="tel" placeholder="021 123 4567" autoComplete="tel" required={false} />
           </div>
 
           <div>
@@ -312,7 +225,7 @@ export default function PilotForm() {
             </div>
           </div>
 
-          {/* Honeypot field - hidden from users */}
+          {/* Honeypot — hidden from real users, catches autofill bots */}
           <input
             type="text"
             name="website"
@@ -322,15 +235,15 @@ export default function PilotForm() {
             aria-hidden="true"
           />
 
-          {siteKey ? (
+          {TURNSTILE_SITE_KEY && (
             <div ref={turnstileContainerRef} id="turnstile-widget" className="flex justify-center" />
-          ) : null}
+          )}
 
-          {status === 'error' && errorMessage ? (
+          {status === 'error' && errorMessage && (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {errorMessage}
             </div>
-          ) : null}
+          )}
 
           <div className="pt-1">
             <button

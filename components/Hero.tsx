@@ -50,7 +50,7 @@ export default function Hero() {
           </a>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 divide-x divide-slate-700 max-w-xl mx-auto border border-slate-700 rounded-2xl overflow-hidden">
+        <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-700 max-w-xl mx-auto border border-slate-700 rounded-2xl overflow-hidden">
           {stats.map((stat) => (
             <div key={stat.label} className="px-4 py-5 text-center bg-slate-800/60">
               <div className="text-2xl sm:text-3xl font-bold text-orange-400 tabular-nums">

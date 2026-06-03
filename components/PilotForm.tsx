@@ -71,16 +71,34 @@ export default function PilotForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [turnstileLoaded, setTurnstileLoaded] = useState(false)
+  const [siteKey, setSiteKey] = useState<string | null>(null)
+  const [loadingSiteKey, setLoadingSiteKey] = useState(true)
   const turnstileWidgetRef = useRef<string | null>(null)
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
-  // Load Turnstile script on component mount
   useEffect(() => {
-    if (!siteKey) {
-      console.warn('NEXT_PUBLIC_TURNSTILE_SITE_KEY not configured')
-      setTurnstileLoaded(true)
-      return
+    async function fetchSiteKey() {
+      try {
+        const response = await fetch('/api/turnstile-key')
+        const body = await response.json()
+
+        if (!response.ok || !body?.siteKey) {
+          throw new Error(body?.error || 'Turnstile site key unavailable')
+        }
+
+        setSiteKey(String(body.siteKey))
+      } catch (error) {
+        console.error('Failed to fetch Turnstile site key:', error)
+        setErrorMessage('Security setup incomplete. Please refresh the page or contact support.')
+      } finally {
+        setLoadingSiteKey(false)
+      }
     }
+
+    fetchSiteKey()
+  }, [])
+
+  useEffect(() => {
+    if (!siteKey) return
 
     const script = document.createElement('script')
     script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
@@ -88,29 +106,38 @@ export default function PilotForm() {
     script.defer = true
 
     script.onload = () => {
-      if (window.turnstile) {
-        // Render Turnstile widget
-        const widgetId = window.turnstile.render('#turnstile-widget', {
-          sitekey: siteKey,
-          theme: 'light',
-          'error-callback': () => {
-            setErrorMessage('Security verification failed. Please refresh and try again.')
-          },
-        })
-        turnstileWidgetRef.current = widgetId
+      if (!window.turnstile) {
+        console.error('Turnstile script loaded but no window.turnstile available')
+        setErrorMessage('Security verification failed. Please refresh and try again.')
         setTurnstileLoaded(true)
+        return
       }
+
+      const widgetId = window.turnstile.render('#turnstile-widget', {
+        sitekey: siteKey,
+        theme: 'light',
+        'error-callback': () => {
+          setErrorMessage('Security verification failed. Please refresh and try again.')
+        },
+      })
+
+      turnstileWidgetRef.current = widgetId
+      setTurnstileLoaded(true)
     }
 
     script.onerror = () => {
       console.error('Failed to load Turnstile script')
-      setTurnstileLoaded(true) // Allow form to submit anyway
+      setErrorMessage('Security verification failed. Please refresh and try again.')
+      setTurnstileLoaded(true)
     }
 
     document.head.appendChild(script)
 
     return () => {
       document.head.removeChild(script)
+      if (window.turnstile && turnstileWidgetRef.current) {
+        window.turnstile.remove(turnstileWidgetRef.current)
+      }
     }
   }, [siteKey])
 
@@ -119,8 +146,7 @@ export default function PilotForm() {
     setStatus('loading')
     setErrorMessage(null)
 
-    // Get Turnstile token
-    const token = window.turnstile?.getResponse() || ''
+    const token = window.turnstile?.getResponse(turnstileWidgetRef.current || undefined) || ''
     if (!token && siteKey) {
       setErrorMessage('Security verification failed. Please try again.')
       setStatus('error')
@@ -134,7 +160,7 @@ export default function PilotForm() {
       email: String(formData.get('email') ?? '').trim(),
       phone: String(formData.get('phone') ?? '').trim(),
       enquiries: String(formData.get('enquiries') ?? '').trim(),
-      website: String(formData.get('website') ?? '').trim(), // Honeypot field
+      website: String(formData.get('website') ?? '').trim(),
       token,
     }
 
@@ -150,7 +176,6 @@ export default function PilotForm() {
       if (!response.ok) {
         setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')
         setStatus('error')
-        // Reset Turnstile widget for retry
         if (turnstileWidgetRef.current) {
           window.turnstile?.reset(turnstileWidgetRef.current)
         }
@@ -161,7 +186,6 @@ export default function PilotForm() {
     } catch (error) {
       setErrorMessage('Network error. Please try again later.')
       setStatus('error')
-      // Reset Turnstile widget for retry
       if (turnstileWidgetRef.current) {
         window.turnstile?.reset(turnstileWidgetRef.current)
       }
@@ -169,6 +193,12 @@ export default function PilotForm() {
   }
 
   if (status === 'success') return <SuccessState />
+
+  const isSubmitDisabled =
+    status === 'loading' ||
+    loadingSiteKey ||
+    (!!siteKey && !turnstileLoaded) ||
+    !siteKey
 
   return (
     <section id="join" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900">
@@ -264,10 +294,9 @@ export default function PilotForm() {
             aria-hidden="true"
           />
 
-          {/* Turnstile widget */}
-          {turnstileLoaded && siteKey && (
+          {siteKey && turnstileLoaded ? (
             <div id="turnstile-widget" className="flex justify-center" />
-          )}
+          ) : null}
 
           {status === 'error' && errorMessage ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -278,7 +307,7 @@ export default function PilotForm() {
           <div className="pt-1">
             <button
               type="submit"
-              disabled={status === 'loading' || (turnstileLoaded && !turnstileLoaded)}
+              disabled={isSubmitDisabled}
               className="w-full py-4 bg-orange-500 text-white font-bold text-lg rounded-xl hover:bg-orange-600 active:bg-orange-700 transition-colors shadow-lg shadow-orange-200 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {status === 'loading' ? 'Sending...' : 'Join the Founding Dealer Program'}

@@ -1,16 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-
-const navLinks = [
-  { href: '#problem', label: 'The Problem' },
-  { href: '#how-it-works', label: 'How It Works' },
-  { href: '#why-join', label: 'Why Join' },
-  { href: '#faq', label: 'FAQ' },
-]
+import { useState, useEffect } from 'react'
+import { navLinks } from '@/lib/nav'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100">

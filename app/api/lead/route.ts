@@ -3,9 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 const enquiryOptions = ['Under 20', '20–50', '50–100', '100–200', '200+'] as const;
-type EnquiryOption = (typeof enquiryOptions)[number];
 
-// Zod validation schema - type-safe form validation
 const formSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100).trim(),
   dealership: z.string().min(2, 'Dealership name must be at least 2 characters').max(100).trim(),
@@ -18,9 +16,10 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-// Simple in-memory rate limiting store (per-process)
-// For production with multiple instances, upgrade to Cloudflare KV
-// See docs/form-security.md for Cloudflare KV implementation
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Simple in-memory rate limiting — resets on cold start.
+// Upgrade to Cloudflare KV for distributed protection (see docs/form-security.md).
 const rateLimitStore = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -100,8 +99,6 @@ function sanitizeHtml(value: string): string {
     .replace(/'/g, '&#x27;');
 }
 
-export const runtime = 'nodejs';
-
 export async function POST(request: NextRequest) {
   // 1. Rate limiting check
   const clientIP = getClientIP(request);
@@ -115,17 +112,16 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Verify environment variables
-  const apiKey = process.env.RESEND_API_KEY;
-  const toEmail = process.env.LEAD_EMAIL ?? 'inspiroanalytics@gmail.com';
-  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'UsedCarsNZ <no-reply@usedcarsnz.co.nz>';
-
-  if (!apiKey) {
+  if (!process.env.RESEND_API_KEY) {
     console.error('Missing RESEND_API_KEY');
     return NextResponse.json(
       { error: 'Service temporarily unavailable.' },
       { status: 500 }
     );
   }
+
+  const toEmail = process.env.LEAD_EMAIL ?? 'inspiroanalytics@gmail.com';
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'UsedCarsNZ <no-reply@usedcarsnz.co.nz>';
 
   // 3. Parse request body
   let body: unknown;
@@ -151,13 +147,16 @@ export async function POST(request: NextRequest) {
 
   if (!parseResult.success) {
     const fieldErrors = parseResult.error.flatten().fieldErrors;
+    const internalFields = new Set(['token', 'website']);
     const errorMessage = Object.entries(fieldErrors)
-      .map(([field, errors]) => errors?.[0] || `${field} is invalid`)
+      .filter(([field]) => !internalFields.has(field))
+      .map(([, errors]) => errors?.[0])
+      .filter(Boolean)
       .join(' ')
-      .substring(0, 200); // Limit error message length to prevent abuse
+      .substring(0, 200);
 
     return NextResponse.json(
-      { error: errorMessage || 'Validation failed.' },
+      { error: errorMessage || 'Validation failed. Please check your details.' },
       { status: 400 }
     );
   }
@@ -182,7 +181,6 @@ export async function POST(request: NextRequest) {
   const sanitizedEnquiries = sanitizeHtml(data.enquiries);
 
   // 8. Send email
-  const resend = new Resend(apiKey);
   const subject = `UsedCarsNZ Founding Dealer Program Lead: ${sanitizedName}`;
   const html = `
     <div style="font-family:system-ui, sans-serif; color:#111;">
@@ -204,6 +202,7 @@ export async function POST(request: NextRequest) {
     await resend.emails.send({
       from: fromEmail,
       to: toEmail,
+      replyTo: sanitizedEmail,
       subject,
       html,
     });

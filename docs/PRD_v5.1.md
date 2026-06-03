@@ -123,6 +123,9 @@ The landing page is **live and in production** on Cloudflare Pages.
 | Email | Resend |
 | CAPTCHA | Cloudflare Turnstile |
 | Validation | Zod |
+| Type declarations | `types/turnstile.d.ts` (global Turnstile window type) |
+
+Security implementation detail is documented in `docs/form-security.md` and summarised in `SECURITY_IMPLEMENTATION.md`.
 
 ---
 
@@ -208,7 +211,7 @@ Current: "Help every enquiry get a professional response, even after hours" (ben
 ## 10. Open Questions
 
 1. What does the MVP product actually do — real-time SMS alert, auto-reply, or AI-drafted response?
-2. Should the original problem-led headline be A/B tested against the current benefit-led version?
-3. At what volume of leads does Cloudflare KV rate limiting become necessary?
+2. Should the original problem-led headline be A/B tested against the current benefit-led version? The original ("Stop Losing Vehicle Enquiries to Slow Response Times") is more direct for the target persona. The current version ("Help every enquiry get a professional response, even after hours") is softer and more aspirational. Decide which angle to run with before scaling outreach.
+3. ~~At what volume of leads does Cloudflare KV rate limiting become necessary?~~ **Closed** — at 10 founding dealers this is a non-issue. Revisit in Phase 2 when moving to paid product.
 4. Should Christchurch remain a priority geography for direct outreach even though the program is nationwide?
 5. What is the pricing model — flat monthly fee, per enquiry, or performance-based?

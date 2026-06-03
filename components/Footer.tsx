@@ -1,9 +1,4 @@
-const navLinks = [
-  { href: '#problem', label: 'The Problem' },
-  { href: '#how-it-works', label: 'How It Works' },
-  { href: '#why-join', label: 'Why Join' },
-  { href: '#faq', label: 'FAQ' },
-]
+import { navLinks } from '@/lib/nav'
 
 export default function Footer() {
   const year = new Date().getFullYear()

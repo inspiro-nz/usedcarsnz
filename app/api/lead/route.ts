@@ -16,8 +16,6 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // Simple in-memory rate limiting — resets on cold start.
 // Upgrade to Cloudflare KV for distributed protection (see docs/form-security.md).
 const rateLimitStore = new Map<string, number[]>();
@@ -181,6 +179,7 @@ export async function POST(request: NextRequest) {
   const sanitizedEnquiries = sanitizeHtml(data.enquiries);
 
   // 8. Send email
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const subject = `UsedCarsNZ Founding Dealer Program Lead: ${sanitizedName}`;
   const html = `
     <div style="font-family:system-ui, sans-serif; color:#111;">

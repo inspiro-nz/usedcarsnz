@@ -62,7 +62,7 @@ function SuccessState() {
 export default function PilotForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [turnstileLoaded, setTurnstileLoaded] = useState(false)
+  const [turnstileReady, setTurnstileReady] = useState(false)
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null)
   const turnstileWidgetIdRef = useRef<string | null>(null)
 
@@ -84,13 +84,16 @@ export default function PilotForm() {
         const widgetId = window.turnstile.render(turnstileContainerRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           theme: 'light',
+          // Token is ready — unlock the submit button
+          callback: () => setTurnstileReady(true),
+          // Token expired (5 min timeout) — re-lock until re-verified
+          'expired-callback': () => setTurnstileReady(false),
           'error-callback': () => {
             setErrorMessage('Security verification failed. Please refresh and try again.')
-            setTurnstileLoaded(false)
+            setTurnstileReady(false)
           },
         })
         turnstileWidgetIdRef.current = widgetId
-        setTurnstileLoaded(true)
       } catch (error) {
         console.error('Failed to render Turnstile widget:', error)
         setErrorMessage('Security verification failed. Please refresh and try again.')
@@ -162,7 +165,7 @@ export default function PilotForm() {
 
   if (status === 'success') return <SuccessState />
 
-  const isSubmitDisabled = status === 'loading' || (!!TURNSTILE_SITE_KEY && !turnstileLoaded)
+  const isSubmitDisabled = status === 'loading' || (!!TURNSTILE_SITE_KEY && !turnstileReady)
 
   return (
     <section id="join" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-900">

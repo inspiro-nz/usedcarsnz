@@ -1,0 +1,48 @@
+# Supabase local development config (WP-0).
+# Docs: https://supabase.com/docs/guides/local-development/cli/config
+#
+# This drives `supabase start` for the LOCAL environment only. Dev, demo, and
+# production are separate hosted projects, each linked by its own project ref.
+project_id = "usedcarsnz"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Match the major version of your hosted Supabase Postgres. Bump here if you
+# upgrade the remote projects so local mirrors production.
+major_version = 17
+
+[db.seed]
+# Seed runs on `supabase start` / `supabase db reset` for LOCAL only.
+# Dev/demo seeding is done explicitly via scripts/seed-remote.sh. Production is
+# NEVER seeded.
+enabled = true
+sql_paths = ["./seed/seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[analytics]
+enabled = false

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\" -Recurse -Attributes !Directory | Where-Object { $_.FullName -notmatch 'node_modules|\\\\.next' } | Select-Object -ExpandProperty FullName | Sort-Object)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\TEST.md\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\app\\\\api\\\\turnstile-key\\\\route.ts\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\public\\\\file.svg\",\"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\public\\\\globe.svg\",\"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\public\\\\next.svg\",\"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\public\\\\vercel.svg\",\"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\\\\public\\\\window.svg\" -Force)",
+      "Bash(Write-Output \"Done\")",
+      "Bash(git -C \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\" status)",
+      "Bash(git -C \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\" diff --stat HEAD)",
+      "Bash(git -C \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\" log --oneline -8)",
+      "Bash(git -C \"C:\\\\Users\\\\Chris.Beckett\\\\OneDrive\\\\Business\\\\usedcarsnz\" rebase --show-current-patch)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

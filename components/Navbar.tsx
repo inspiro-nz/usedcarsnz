@@ -2,9 +2,29 @@
 
 import { useState, useEffect } from 'react'
 import { navLinks } from '@/lib/nav'
+import { supabaseBrowser } from '@/lib/supabase/browser'
 
+/**
+ * Auth state is checked client-side (not via a server prop) so the homepage
+ * stays statically prerendered — it's the conversion-critical landing page,
+ * and a per-request Supabase round trip here would cost every visitor,
+ * signed in or not, just to light up two nav links.
+ */
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [signedIn, setSignedIn] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    supabaseBrowser()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (active) setSignedIn(!!data.session)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -14,6 +34,11 @@ export default function Navbar() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen])
+
+  async function signOut() {
+    await supabaseBrowser().auth.signOut()
+    window.location.href = '/'
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-slate-100">
@@ -36,6 +61,37 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
+            {signedIn ? (
+              <>
+                <a
+                  href="/account"
+                  className="hidden sm:inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  My account
+                </a>
+                <button
+                  onClick={signOut}
+                  className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <a
+                  href="/sign-in"
+                  className="hidden sm:inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  Sign in
+                </a>
+                <a
+                  href="/sign-up"
+                  className="hidden sm:inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  Sign up
+                </a>
+              </>
+            )}
             <a
               href="#join"
               className="hidden sm:inline-flex items-center px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 transition-colors"
@@ -75,6 +131,43 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
+            {signedIn ? (
+              <>
+                <a
+                  href="/account"
+                  onClick={() => setIsOpen(false)}
+                  className="px-2 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
+                >
+                  My account
+                </a>
+                <button
+                  onClick={() => {
+                    setIsOpen(false)
+                    signOut()
+                  }}
+                  className="w-full px-2 py-2.5 text-left text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <a
+                  href="/sign-in"
+                  onClick={() => setIsOpen(false)}
+                  className="px-2 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
+                >
+                  Sign in
+                </a>
+                <a
+                  href="/sign-up"
+                  onClick={() => setIsOpen(false)}
+                  className="px-2 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
+                >
+                  Sign up
+                </a>
+              </>
+            )}
             <a
               href="#join"
               onClick={() => setIsOpen(false)}

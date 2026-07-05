@@ -40,6 +40,7 @@ export async function MarketplaceHeader() {
                 {!dealer ? (
                   <NavLink href="/register-dealer">List with us</NavLink>
                 ) : null}
+                <NavLink href="/account">My account</NavLink>
                 <form action={signOutAction} className="inline shrink-0">
                   <button className="whitespace-nowrap px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:px-3">
                     Sign out

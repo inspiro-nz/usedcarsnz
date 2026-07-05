@@ -49,3 +49,7 @@ next-env.d.ts
 .dev.vars.example
 
 .env.example
+
+# AI Contributors
+.claude*
+.qodo*

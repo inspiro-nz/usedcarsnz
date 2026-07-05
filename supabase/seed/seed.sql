@@ -1,0 +1,9 @@
+-- UsedCarsNZ seed data — DEV / DEMO ONLY. NEVER run against production.
+--
+-- Intentionally empty at WP-0: there is no schema yet (tables arrive in WP-1+).
+-- Demo seed content (per strategy doc §10.1: ~3 dealers, ~30 listings, sample
+-- enquiries in varied lead states, royalty-free placeholder photos) will be
+-- added in the work package that introduces the schema.
+--
+-- Local: applied automatically by `supabase start` / `supabase db reset`.
+-- Dev/Demo: applied explicitly via scripts/seed-remote.sh (refuses production).

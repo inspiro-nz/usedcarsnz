@@ -50,7 +50,7 @@ export default function Problem() {
             The Problem Dealers Face Every Day
           </h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            Online enquiries are time-sensitive. Most dealerships aren't set up to
+            Online enquiries are time-sensitive. Most dealerships aren&apos;t set up to
             respond at the speed buyers now expect.
           </p>
         </div>

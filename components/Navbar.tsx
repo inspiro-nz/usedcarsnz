@@ -15,17 +15,14 @@ export default function Navbar() {
   const [signedIn, setSignedIn] = useState(false)
 
   useEffect(() => {
-    let active = true
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
     if (!supabaseUrl || !publishableKey) {
-      setSignedIn(false)
-      return () => {
-        active = false
-      }
+      return
     }
+
+    let active = true
 
     void (async () => {
       try {

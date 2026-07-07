@@ -14,14 +14,14 @@ import { getServerEnv } from "@/lib/env";
  */
 export function supabaseService() {
   const env = getServerEnv();
-  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!env.SUPABASE_SECRET_KEY) {
     throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY is not set — required for the lead engine.",
+      "SUPABASE_SECRET_KEY is not set — required for the lead engine.",
     );
   }
   return createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.SUPABASE_SECRET_KEY,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 }

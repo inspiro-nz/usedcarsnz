@@ -71,8 +71,9 @@ Marketplace routes need a Supabase project with the WP-1 migrations applied
 ```bash
 # Required for marketplace pages
 NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...        # secret — lead engine writes (wrangler secret put)
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...   # dashboard: Settings > API Keys > Publishable key
+SUPABASE_SECRET_KEY=...              # dashboard: Settings > API Keys > Secret keys
+                                      # secret — lead engine writes (wrangler secret put)
 
 # Optional
 NEXT_PUBLIC_SITE_URL=https://usedcarsnz.co.nz   # defaults to this

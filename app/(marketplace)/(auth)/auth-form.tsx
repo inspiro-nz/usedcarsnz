@@ -18,24 +18,32 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const sb = supabaseBrowser();
-    if (mode === "sign-up") {
-      const { error } = await sb.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-      if (error) setError(error.message);
-      else setDone(true);
-    } else {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else {
-        router.push("/");
-        router.refresh();
+    try {
+      const sb = supabaseBrowser();
+      if (mode === "sign-up") {
+        const { error } = await sb.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/account`,
+          },
+        });
+        if (error) setError(error.message);
+        else setDone(true);
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) setError(error.message);
+        else {
+          router.push("/");
+          router.refresh();
+        }
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   if (done) {

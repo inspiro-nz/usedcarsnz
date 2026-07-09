@@ -27,6 +27,11 @@ const clientSchema = z.object({
     .default("https://usedcarsnz.co.nz"),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  // Same Cloudflare Turnstile site as the landing page's /api/lead widget
+  // (which reads this directly from process.env, per lib/env.ts's module
+  // comment) — one Turnstile site covers both pages, so POST /api/enquiries
+  // reuses it rather than requiring a second widget registration.
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional().default(""),
 });
 
 const serverSchema = z.object({
@@ -34,6 +39,8 @@ const serverSchema = z.object({
   SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
   RESEND_API_KEY: z.string().min(1).optional().default(""),
   OPENAI_API_KEY: z.string().min(1).optional().default(""),
+  // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
+  TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;

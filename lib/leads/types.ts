@@ -17,6 +17,10 @@ export interface EnquiryReceivedMeta {
 export interface AckSentMeta {
   channel: "email" | "sms";
   template: string;
+  /** Server-measured enquiry_received -> ack_sent latency, for the SLA metric. */
+  ms_since_received?: number;
+  /** True when the ack only sent via the email_outbox retry sweep, not the original request. */
+  via_outbox_retry?: boolean;
 }
 
 export interface AiFirstResponseSentMeta {

@@ -10,11 +10,13 @@ export async function sendEmail(input: {
   to: string;
   subject: string;
   text: string;
-}): Promise<{ sent: boolean }> {
+  html?: string;
+  replyTo?: string;
+}): Promise<{ sent: boolean; error?: string }> {
   const env = getServerEnv();
   if (!env.RESEND_API_KEY) {
     console.info(`[email:skipped no RESEND_API_KEY] to=${input.to} subject="${input.subject}"`);
-    return { sent: false };
+    return { sent: false, error: "RESEND_API_KEY not configured" };
   }
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -27,8 +29,14 @@ export async function sendEmail(input: {
       to: [input.to],
       subject: input.subject,
       text: input.text,
+      ...(input.html ? { html: input.html } : {}),
+      ...(input.replyTo ? { reply_to: input.replyTo } : {}),
     }),
   });
-  if (!res.ok) console.error(`[email:failed] ${res.status} ${await res.text()}`);
-  return { sent: res.ok };
+  if (!res.ok) {
+    const error = await res.text();
+    console.error(`[email:failed] ${res.status} ${error}`);
+    return { sent: false, error: `${res.status} ${error}` };
+  }
+  return { sent: true };
 }

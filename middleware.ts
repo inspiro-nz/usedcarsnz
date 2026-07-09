@@ -42,6 +42,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/account",
+    "/reset-password",
     "/cars/:path*",
     "/dealer/:path*",
     "/admin/:path*",

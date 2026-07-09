@@ -25,13 +25,23 @@ export type LeadEventType =
   | "draft_approved"
   | "reply_sent"
   | "viewing_booked"
-  | "marked_sold";
+  | "marked_sold"
+  // Added in 20260707100000_lead_engine_enums.sql — additive, existing values above unchanged.
+  | "ack_sent"
+  | "ai_message_sent"
+  | "buyer_message_received"
+  | "qualification_updated"
+  | "appointment_booked"
+  | "lead_closed";
 export type AiDraftStatus =
   | "pending"
   | "approved"
   | "rejected"
   | "sent"
   | "discarded";
+export type MessageSender = "buyer" | "ai" | "dealer";
+export type DealerAliasSource = "trademe" | "generic";
+export type EnquirySource = "platform_form" | "email_trademe" | "email_other";
 
 export interface UserRow {
   id: string;
@@ -100,6 +110,8 @@ export interface EnquiryRow {
   message: string | null;
   qualification: Qualification | null;
   status: EnquiryStatus;
+  source: EnquirySource;
+  external_message_id: string | null;
   created_at: string;
 }
 
@@ -134,4 +146,21 @@ export interface LeadEventRow {
   actor: LeadActor;
   occurred_at: string;
   payload: Record<string, unknown>;
+}
+
+export interface MessageRow {
+  id: string;
+  enquiry_id: string;
+  sender: MessageSender;
+  body: string;
+  created_at: string;
+}
+
+export interface DealerAliasRow {
+  id: string;
+  dealer_id: string;
+  alias: string;
+  source_hint: DealerAliasSource;
+  active: boolean;
+  created_at: string;
 }

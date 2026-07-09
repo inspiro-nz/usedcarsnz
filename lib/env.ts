@@ -31,9 +31,9 @@ const clientSchema = z.object({
 
 const serverSchema = z.object({
   // Server-only secrets.
-  SUPABASE_SECRET_KEY: z.string().min(1).optional(),
-  RESEND_API_KEY: z.string().min(1).optional(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
+  RESEND_API_KEY: z.string().min(1).optional().default(""),
+  OPENAI_API_KEY: z.string().min(1).optional().default(""),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -61,6 +61,16 @@ function readClient(): ClientEnv {
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   };
   if (skipValidation) return raw as unknown as ClientEnv;
+
+  const hasSupabaseConfig = Boolean(raw.NEXT_PUBLIC_SUPABASE_URL && raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  if (!hasSupabaseConfig) {
+    return {
+      NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? "production",
+      NEXT_PUBLIC_SITE_URL: raw.NEXT_PUBLIC_SITE_URL ?? "https://usedcarsnz.co.nz",
+      NEXT_PUBLIC_SUPABASE_URL: raw.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+    } as ClientEnv;
+  }
 
   const parsed = clientSchema.safeParse(raw);
   if (!parsed.success) {

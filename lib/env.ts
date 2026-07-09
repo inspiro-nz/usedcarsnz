@@ -31,7 +31,7 @@ const clientSchema = z.object({
   // (which reads this directly from process.env, per lib/env.ts's module
   // comment) — one Turnstile site covers both pages, so POST /api/enquiries
   // reuses it rather than requiring a second widget registration.
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional().default(""),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional().default(""),
 });
 
 const AI_PROVIDERS = ["workers-ai", "anthropic"] as const;

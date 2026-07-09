@@ -142,7 +142,7 @@ export default function PilotFormClient({ siteKey }: { siteKey: string }) {
         body: JSON.stringify(payload),
       })
 
-      const body = await response.json()
+      const body = (await response.json()) as { error?: string }
 
       if (!response.ok) {
         setErrorMessage(body?.error ?? 'Unable to submit your request. Please try again.')

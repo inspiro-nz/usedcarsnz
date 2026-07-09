@@ -27,13 +27,30 @@ const clientSchema = z.object({
     .default("https://usedcarsnz.co.nz"),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  // Same Cloudflare Turnstile site as the landing page's /api/lead widget
+  // (which reads this directly from process.env, per lib/env.ts's module
+  // comment) — one Turnstile site covers both pages, so POST /api/enquiries
+  // reuses it rather than requiring a second widget registration.
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional().default(""),
 });
+
+const AI_PROVIDERS = ["workers-ai", "anthropic"] as const;
 
 const serverSchema = z.object({
   // Server-only secrets.
-  SUPABASE_SECRET_KEY: z.string().min(1).optional(),
-  RESEND_API_KEY: z.string().min(1).optional(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
+  RESEND_API_KEY: z.string().min(1).optional().default(""),
+  OPENAI_API_KEY: z.string().min(1).optional().default(""),
+  // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
+  TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
+
+  // Bounded AI layer (strategy §7) — provider/model are per-lane so either
+  // lane can be flipped to the Anthropic escalation path independently.
+  AI_PROVIDER_QUALIFY: z.enum(AI_PROVIDERS).default("workers-ai"),
+  AI_PROVIDER_DRAFT: z.enum(AI_PROVIDERS).default("workers-ai"),
+  AI_MODEL_QUALIFY: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+  AI_MODEL_DRAFT: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -62,6 +79,16 @@ function readClient(): ClientEnv {
   };
   if (skipValidation) return raw as unknown as ClientEnv;
 
+  const hasSupabaseConfig = Boolean(raw.NEXT_PUBLIC_SUPABASE_URL && raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  if (!hasSupabaseConfig) {
+    return {
+      NEXT_PUBLIC_APP_ENV: raw.NEXT_PUBLIC_APP_ENV ?? "production",
+      NEXT_PUBLIC_SITE_URL: raw.NEXT_PUBLIC_SITE_URL ?? "https://usedcarsnz.co.nz",
+      NEXT_PUBLIC_SUPABASE_URL: raw.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: raw.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+    } as ClientEnv;
+  }
+
   const parsed = clientSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(
@@ -80,6 +107,11 @@ function readServer(): ServerEnv {
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    AI_PROVIDER_QUALIFY: process.env.AI_PROVIDER_QUALIFY,
+    AI_PROVIDER_DRAFT: process.env.AI_PROVIDER_DRAFT,
+    AI_MODEL_QUALIFY: process.env.AI_MODEL_QUALIFY,
+    AI_MODEL_DRAFT: process.env.AI_MODEL_DRAFT,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   };
   if (skipValidation) return { ...client, ...raw } as ServerEnv;
 

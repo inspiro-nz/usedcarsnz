@@ -27,8 +27,12 @@ export async function deleteAccountAction() {
     redirect("/account?error=owns-dealer");
   }
 
-  const { error } = await supabaseService().auth.admin.deleteUser(user.id);
-  if (error) {
+  try {
+    const { error } = await supabaseService().auth.admin.deleteUser(user.id);
+    if (error) {
+      redirect("/account?error=delete-failed");
+    }
+  } catch {
     redirect("/account?error=delete-failed");
   }
 

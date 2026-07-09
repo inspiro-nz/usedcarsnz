@@ -20,19 +20,30 @@ export type LeadActor = "ai" | "human" | "system";
 export type LeadEventType =
   | "enquiry_received"
   | "ai_first_response_sent"
+  | "ai_message_sent"
   | "qualification_completed"
+  | "qualification_updated"
+  | "guard_blocked"
   | "draft_created"
   | "draft_approved"
   | "reply_sent"
   | "viewing_booked"
-  | "marked_sold";
+  | "marked_sold"
+  // Added in 20260707100000_lead_engine_enums.sql — additive, existing values above unchanged.
+  | "ack_sent"
+  | "buyer_message_received"
+  | "appointment_booked"
+  | "lead_closed";
 export type AiDraftStatus =
   | "pending"
   | "approved"
   | "rejected"
   | "sent"
-  | "discarded";
-
+  | "discarded"
+  | "generation_failed";
+export type MessageSender = "buyer" | "ai" | "dealer" | "system";
+export type DealerAliasSource = "trademe" | "generic";
+export type EnquirySource = "platform_form" | "email_trademe" | "email_other";
 export interface UserRow {
   id: string;
   role: UserRole;
@@ -53,7 +64,19 @@ export interface DealerRow {
   region: string | null;
   status: DealerStatus;
   verified: boolean;
+  approved_facts: ApprovedFacts;
   created_at: string;
+}
+
+/**
+ * The ONLY generic dealer facts Lane 1 may auto-send verbatim (strategy §7).
+ * Deliberately closed to these three — never vehicle-specific, never free text
+ * a dealer could smuggle a condition/warranty claim into unnoticed.
+ */
+export interface ApprovedFacts {
+  hours?: string | null;
+  address?: string | null;
+  viewing_process?: string | null;
 }
 
 export interface ListingRow {
@@ -100,15 +123,23 @@ export interface EnquiryRow {
   message: string | null;
   qualification: Qualification | null;
   status: EnquiryStatus;
+  source: EnquirySource;
+  external_message_id: string | null;
   created_at: string;
 }
 
-/** Buyer-side pre-qualification snapshot (§9.1). Structured, never free text. */
+/**
+ * Buyer-side pre-qualification snapshot (§9.1, §7). Structured, never free
+ * text — this is exactly what Lane 1 is allowed to write. `finance` is the
+ * "finance interest" signal (§7: introduce-only, never a recommendation).
+ */
 export interface Qualification {
   budget_nzd?: number | null;
   finance?: "yes" | "no" | "unsure" | null;
   trade_in?: "yes" | "no" | null;
   timeline?: "this_week" | "this_month" | "browsing" | null;
+  location?: string | null;
+  intent_score?: number | null;
 }
 
 export interface AiDraftRow {
@@ -122,7 +153,30 @@ export interface AiDraftRow {
   approved_by: string | null;
   approved_at: string | null;
   sent_at: string | null;
+  provider: string | null;
+  model_id: string | null;
+  prompt_version: string | null;
   created_at: string;
+}
+
+export interface MessageRow {
+  id: string;
+  enquiry_id: string;
+  sender: MessageSender;
+  body: string;
+  meta: MessageMeta;
+  created_at: string;
+}
+
+/** Per-turn AI metadata on a messages row. Display + Lane-2 routing only. */
+export interface MessageMeta {
+  needs_dealer?: boolean;
+  dealer_question?: string | null;
+  next_topic?: string | null;
+  guard_blocked?: boolean;
+  provider?: string;
+  model?: string;
+  prompt_version?: string;
 }
 
 export interface LeadEventRow {
@@ -134,4 +188,13 @@ export interface LeadEventRow {
   actor: LeadActor;
   occurred_at: string;
   payload: Record<string, unknown>;
+}
+
+export interface DealerAliasRow {
+  id: string;
+  dealer_id: string;
+  alias: string;
+  source_hint: DealerAliasSource;
+  active: boolean;
+  created_at: string;
 }

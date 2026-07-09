@@ -15,12 +15,24 @@ export default function Navbar() {
   const [signedIn, setSignedIn] = useState(false)
 
   useEffect(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+    if (!supabaseUrl || !publishableKey) {
+      return
+    }
+
     let active = true
-    supabaseBrowser()
-      .auth.getSession()
-      .then(({ data }) => {
+
+    void (async () => {
+      try {
+        const { data } = await supabaseBrowser().auth.getSession()
         if (active) setSignedIn(!!data.session)
-      })
+      } catch {
+        if (active) setSignedIn(false)
+      }
+    })()
+
     return () => {
       active = false
     }

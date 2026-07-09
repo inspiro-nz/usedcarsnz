@@ -68,6 +68,10 @@ export interface LeadClosedMeta {
   reason?: string;
 }
 
+export interface GuardBlockedMeta {
+  category: "vehicle_condition" | "warranty_cga" | "finance_opinion" | null;
+}
+
 interface LeadEventMetaMap {
   enquiry_received: EnquiryReceivedMeta;
   ack_sent: AckSentMeta;
@@ -76,6 +80,7 @@ interface LeadEventMetaMap {
   buyer_message_received: BuyerMessageReceivedMeta;
   qualification_completed: QualificationCompletedMeta;
   qualification_updated: QualificationUpdatedMeta;
+  guard_blocked: GuardBlockedMeta;
   draft_created: DraftCreatedMeta;
   draft_approved: DraftApprovedMeta;
   reply_sent: ReplySentMeta;

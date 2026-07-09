@@ -53,3 +53,9 @@ next-env.d.ts
 # AI Contributors
 .claude*
 .qodo*
+
+#Supabase
+supabase/.temp
+# recovery backups (local only)
+pre-recovery-*
+supabase/.temp/

@@ -34,6 +34,8 @@ const clientSchema = z.object({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional().default(""),
 });
 
+const AI_PROVIDERS = ["workers-ai", "anthropic"] as const;
+
 const serverSchema = z.object({
   // Server-only secrets.
   SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
@@ -41,6 +43,14 @@ const serverSchema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional().default(""),
   // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
   TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
+
+  // Bounded AI layer (strategy §7) — provider/model are per-lane so either
+  // lane can be flipped to the Anthropic escalation path independently.
+  AI_PROVIDER_QUALIFY: z.enum(AI_PROVIDERS).default("workers-ai"),
+  AI_PROVIDER_DRAFT: z.enum(AI_PROVIDERS).default("workers-ai"),
+  AI_MODEL_QUALIFY: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+  AI_MODEL_DRAFT: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -97,6 +107,11 @@ function readServer(): ServerEnv {
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    AI_PROVIDER_QUALIFY: process.env.AI_PROVIDER_QUALIFY,
+    AI_PROVIDER_DRAFT: process.env.AI_PROVIDER_DRAFT,
+    AI_MODEL_QUALIFY: process.env.AI_MODEL_QUALIFY,
+    AI_MODEL_DRAFT: process.env.AI_MODEL_DRAFT,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   };
   if (skipValidation) return { ...client, ...raw } as ServerEnv;
 

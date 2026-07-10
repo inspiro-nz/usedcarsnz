@@ -131,7 +131,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request({ ...validBody, website: "http://spam.example" }));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
@@ -142,7 +142,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(429);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.error).toBeTruthy();
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
@@ -153,7 +153,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.error).toBeTruthy();
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
@@ -171,7 +171,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
     expect(insertOutboxRowMock).toHaveBeenCalledTimes(1);
     expect(emitLeadEventMock).not.toHaveBeenCalledWith(
@@ -183,7 +183,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
     expect(body.enquiryId).toBe("enquiry-1");
 

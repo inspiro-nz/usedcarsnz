@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // Mirrors tsconfig.json's "@/*": ["./*"] path alias, and mocks the
 // "server-only" marker package (which unconditionally throws on import
@@ -9,6 +9,9 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // Playwright specs in e2e/ are *.spec.ts too — keep Vitest from picking them
+    // up (they'd fail: no @playwright/test runner). Playwright owns e2e/.
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
   resolve: {
     alias: {

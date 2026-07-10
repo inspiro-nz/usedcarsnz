@@ -1,4 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
+
+// The dev server (webServer, `next dev`) loads .env.local on its own, but the
+// Playwright *runner* process (this config + the specs) is plain Node and does
+// not. Load it here with Next's own loader so specs can read env-gated creds
+// like E2E_TEST_EMAIL / E2E_TEST_PASSWORD (else signin.spec.ts always skips).
+loadEnvConfig(process.cwd());
 
 /**
  * Browser smoke tests — LOCAL ONLY for now (see docs/testing.md).

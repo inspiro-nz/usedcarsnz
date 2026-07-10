@@ -54,7 +54,8 @@ The sign-in specs need a known Supabase auth user. Credentials are read from env
 and are **never hardcoded** — the specs **SKIP** (they do not fail) when the env
 vars are absent.
 
-1. Set these in `.env.local` (Playwright's dev server loads it):
+1. Set these in `.env.local` (`playwright.config.ts` loads it via `@next/env`
+   for both the test runner and the dev server):
 
    ```
    E2E_TEST_EMAIL=e2e@example.com

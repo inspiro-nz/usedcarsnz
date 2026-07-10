@@ -1,0 +1,26 @@
+{
+  // Standalone Email Worker for the inbound-lead lane (§5.3). Deployed
+  // separately from the Next.js app worker (../../wrangler.jsonc). The Email
+  // Routing catch-all rule (see docs/infra/email-routing.md) points here.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "usedcarsnz-email-inbound",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-03",
+  // postal-mime is Workers-native; nodejs_compat is belt-and-suspenders so a
+  // transitive `node:*` reference can never break the receive path at runtime.
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    // Non-secret config. Override per-environment at deploy time if needed.
+    "APP_INBOUND_URL": "https://usedcarsnz.co.nz/api/inbound/email",
+    // Must be a VERIFIED Email Routing destination that is NOT on this zone —
+    // forwarding a usedcarsnz.co.nz address back through the catch-all would
+    // LOOP. Use the founder's external inbox. See docs/infra/email-routing.md.
+    "FOUNDER_FORWARD_ADDRESS": "CHANGE-ME-external-verified@example.com"
+  }
+  // INBOUND_HMAC_SECRET is a SECRET — never put it here. Set it with:
+  //   wrangler secret put INBOUND_HMAC_SECRET   (run in this directory)
+  // It MUST equal the app's INBOUND_HMAC_SECRET env var.
+}

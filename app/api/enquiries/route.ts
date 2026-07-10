@@ -5,12 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseService } from "@/lib/supabase/service";
 import { checkRateLimit, getClientIP, honeypotTripped } from "@/lib/security";
 import { verifyTurnstile } from "@/lib/turnstile";
-import { sendEmail } from "@/lib/email";
-import { buildAckEmail } from "@/lib/email/ack-template";
-import { insertOutboxRow } from "@/lib/email/outbox";
-import { emitLeadEvent } from "@/lib/leads/events";
-import { triggerQualification } from "@/lib/ai/trigger";
-import { getClientEnv } from "@/lib/env";
+import { runFirstTouch } from "@/lib/enquiries/first-touch";
 import type { ListingRow } from "@/lib/db/types";
 
 /**
@@ -127,57 +122,18 @@ export async function POST(request: NextRequest) {
     dealerLogoUrl = dealer?.logo_url ?? null;
   }
 
-  const env = getClientEnv();
-  const threadUrl = `${env.NEXT_PUBLIC_SITE_URL}/thread/${enquiry.id}`;
-  const ack = buildAckEmail({
-    buyerName: data.name,
-    dealerName,
-    dealerLogoUrl,
-    threadUrl,
-  });
-
-  const sendResult = await sendEmail({
-    to: data.email,
-    subject: ack.subject,
-    text: ack.text,
-    html: ack.html,
-    replyTo: dealerEmail ?? undefined,
-  });
-
-  if (sendResult.sent) {
-    await svc.from("messages").insert({
-      enquiry_id: enquiry.id,
-      sender: "ai",
-      body: ack.text,
-    });
-    const msSinceReceived = Date.now() - new Date(enquiry.created_at).getTime();
-    await emitLeadEvent({
-      leadId: enquiry.id,
-      eventType: "ack_sent",
-      actor: "ai",
-      metadata: { channel: "email", template: "first-touch-v1", ms_since_received: msSinceReceived },
-    });
-  } else {
-    // Buyer still gets a success response — the SLA is about telling them
-    // "we've got this", not about Resend's uptime. No ack_sent is emitted
-    // until lib/email/outbox.ts's sweep actually sends it.
-    await insertOutboxRow({
-      enquiryId: enquiry.id,
-      to: data.email,
-      replyTo: dealerEmail ?? undefined,
-      subject: ack.subject,
-      text: ack.text,
-      html: ack.html,
-      lastError: sendResult.error ?? "unknown error",
-    });
-  }
-
+  // The templated ack + qualification hand-off is the SHARED first touch,
+  // identical to the inbound-email lane (lib/enquiries/first-touch.ts). Awaited
+  // so the ack send/queue completes before we respond; qualification is
+  // scheduled via ctx.waitUntil inside it.
   const { ctx } = await getCloudflareContext({ async: true });
-  ctx.waitUntil(
-    triggerQualification(enquiry.id).catch((err) => {
-      console.error(`[ai:trigger] triggerQualification failed for ${enquiry.id}:`, err);
-    }),
-  );
+  await runFirstTouch({
+    enquiry: { id: enquiry.id, created_at: enquiry.created_at },
+    buyer: { name: data.name, email: data.email },
+    dealer: { name: dealerName, email: dealerEmail, logoUrl: dealerLogoUrl },
+    channel: "email",
+    waitUntil: (p) => ctx.waitUntil(p),
+  });
 
   return NextResponse.json({
     ok: true,

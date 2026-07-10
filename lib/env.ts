@@ -44,6 +44,14 @@ const serverSchema = z.object({
   // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
   TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
 
+  // Inbound-email lane (§5.3). Shared HMAC secret between the email-inbound
+  // Worker (which signs) and POST /api/inbound/email (which verifies). Optional
+  // here so `next build` stays green with an empty env, but the endpoint FAILS
+  // CLOSED (503) when it's unset — it never processes an unauthenticated POST.
+  INBOUND_HMAC_SECRET: z.string().min(1).optional().default(""),
+  // Where unknown-alias / system-mail notifications go. Empty => log only.
+  FOUNDER_EMAIL: z.string().email().optional().or(z.literal("")).default(""),
+
   // Bounded AI layer (strategy §7) — provider/model are per-lane so either
   // lane can be flipped to the Anthropic escalation path independently.
   AI_PROVIDER_QUALIFY: z.enum(AI_PROVIDERS).default("workers-ai"),
@@ -107,6 +115,8 @@ function readServer(): ServerEnv {
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    INBOUND_HMAC_SECRET: process.env.INBOUND_HMAC_SECRET,
+    FOUNDER_EMAIL: process.env.FOUNDER_EMAIL,
     AI_PROVIDER_QUALIFY: process.env.AI_PROVIDER_QUALIFY,
     AI_PROVIDER_DRAFT: process.env.AI_PROVIDER_DRAFT,
     AI_MODEL_QUALIFY: process.env.AI_MODEL_QUALIFY,

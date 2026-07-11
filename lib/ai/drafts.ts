@@ -36,21 +36,32 @@ export function composeFirstTouch(input: {
   ].join("\n");
 }
 
-/** Output 2 — vehicle-aware DRAFT for the dealer. Requires human approval. */
+/**
+ * Output 2 — vehicle-aware DRAFT for the dealer. Requires human approval.
+ *
+ * `listing` is NULL for inbound-email leads whose vehicle lives off-platform
+ * (§5.3): there is no listing to name. In that case the opening invents NO
+ * vehicle — it leaves a [DEALER TO CONFIRM] marker instead (§7). With a listing,
+ * the output is unchanged.
+ */
 export function draftDealerReply(input: {
   enquiry: Pick<EnquiryRow, "buyer_name" | "message" | "qualification">;
-  listing: Pick<ListingRow, "year" | "make" | "model" | "variant" | "suburb" | "city">;
+  listing: Pick<ListingRow, "year" | "make" | "model" | "variant" | "suburb" | "city"> | null;
   dealerName: string | null;
 }): string {
   const l = input.listing;
-  const name = [l.year, l.make, l.model, l.variant].filter(Boolean).join(" ");
-  const where = [l.suburb, l.city].filter(Boolean).join(", ");
+  const name = l ? [l.year, l.make, l.model, l.variant].filter(Boolean).join(" ") : null;
+  const where = l ? [l.suburb, l.city].filter(Boolean).join(", ") : "";
   const q = summariseQualification(input.enquiry.qualification);
+
+  const opening = name
+    ? `Thanks for getting in touch about the ${name}${where ? ` here in ${where}` : ""}. It's available to view — happy to arrange a time that suits you for a look and a test drive.`
+    : `Thanks for getting in touch. [DEALER TO CONFIRM: which vehicle ${input.enquiry.buyer_name} is enquiring about] — once we've confirmed the details, we'd be happy to arrange a time for a look and a test drive.`;
 
   return [
     `Hi ${input.enquiry.buyer_name},`,
     ``,
-    `Thanks for getting in touch about the ${name}${where ? ` here in ${where}` : ""}. It's available to view — happy to arrange a time that suits you for a look and a test drive.`,
+    opening,
     q ? `` : null,
     q,
     ``,

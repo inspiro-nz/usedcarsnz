@@ -52,12 +52,19 @@ function check(label: string, cond: boolean, detail = "") {
   if (!cond) failed++;
 }
 
-async function post(recipient: string, rawEmail: string, tamper = false) {
+interface PostResult {
+  httpStatus: number;
+  body: { ok?: boolean; enquiryId?: string; reason?: string; deduped?: boolean; kind?: string };
+  action: Awaited<ReturnType<typeof buildAction>>;
+}
+
+async function post(recipient: string, rawEmail: string, tamper = false): Promise<PostResult> {
   const action = await buildAction(rawEmail, recipient, env);
   if (action.kind !== "post") return { httpStatus: 0, body: { kind: action.kind }, action };
-  const body = tamper ? action.signed.body.replace(/Corolla/g, "Hacked") : action.signed.body;
-  const res = await fetch(APP_URL, { method: "POST", headers: action.signed.headers, body });
-  return { httpStatus: res.status, body: await res.json().catch(() => ({})), action };
+  const reqBody = tamper ? action.signed.body.replace(/Corolla/g, "Hacked") : action.signed.body;
+  const res = await fetch(APP_URL, { method: "POST", headers: action.signed.headers, body: reqBody });
+  const respBody = (await res.json().catch(() => ({}))) as PostResult["body"];
+  return { httpStatus: res.status, body: respBody, action };
 }
 
 async function main() {

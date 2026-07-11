@@ -59,6 +59,14 @@ const serverSchema = z.object({
   AI_MODEL_QUALIFY: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
   AI_MODEL_DRAFT: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+
+  // Set ONLY in the demo environment. When truthy ("1"/"true"), every metric
+  // surface (dealer dashboard + public aggregate page) renders a visible "Sample
+  // data" badge, so seeded numbers can never be mistaken for measured results
+  // (§9.2 honesty). The seed/reset scripts also gate on the environment being
+  // demo/local. Interpreted by isSampleData() in lib/metrics-views.ts; kept a
+  // raw string here so the env's inferred type stays a plain record.
+  DEMO_SAMPLE_DATA: z.string().optional(),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -122,6 +130,7 @@ function readServer(): ServerEnv {
     AI_MODEL_QUALIFY: process.env.AI_MODEL_QUALIFY,
     AI_MODEL_DRAFT: process.env.AI_MODEL_DRAFT,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    DEMO_SAMPLE_DATA: process.env.DEMO_SAMPLE_DATA,
   };
   if (skipValidation) return { ...client, ...raw } as ServerEnv;
 

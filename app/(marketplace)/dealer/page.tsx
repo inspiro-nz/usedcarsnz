@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/auth";
-import { dealerFunnelMetrics } from "@/lib/metrics";
+import { dealerMetrics, isSampleData } from "@/lib/metrics-views";
 import { duration } from "@/lib/format";
 import { Badge, Stat, Btn } from "@/components/marketplace/ui";
+import { SampleDataBadge } from "@/components/marketplace/metrics";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Dealer dashboard" };
@@ -15,7 +16,8 @@ export default async function DealerDashboard() {
   const dealer = viewer.dealers[0];
   if (!dealer) redirect("/register-dealer");
 
-  const m = await dealerFunnelMetrics();
+  const m = await dealerMetrics(dealer.id);
+  const sample = isSampleData();
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -32,6 +34,9 @@ export default async function DealerDashboard() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Btn href="/dealer/metrics" kind="quiet">
+            Conversion metrics
+          </Btn>
           <Btn href="/dealer/leads" kind="quiet">
             Lead inbox
           </Btn>
@@ -51,30 +56,29 @@ export default async function DealerDashboard() {
 
       {/* The conversion instrument panel — your numbers, measured, exportable. */}
       <section className="mt-8 rounded-2xl border border-slate-100 bg-white shadow-sm p-6">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-semibold text-slate-900">Your conversion proof</h2>
-          <p className="tabular-nums text-xs text-slate-500">
-            live · from the immutable event log
-          </p>
+          <div className="flex items-center gap-2">
+            {sample ? <SampleDataBadge /> : null}
+            <p className="tabular-nums text-xs text-slate-500">
+              live · from the immutable event log
+            </p>
+          </div>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-5">
           <Stat
             label="median first response"
-            value={
-              m.medianFirstResponseSeconds != null
-                ? duration(m.medianFirstResponseSeconds)
-                : "—"
-            }
+            value={duration(m.medianFirstResponseSeconds)}
             hot
           />
           <Stat label="enquiries" value={String(m.enquiries)} />
-          <Stat label="viewings booked" value={String(m.viewingsBooked)} />
+          <Stat label="appointments" value={String(m.appointments)} />
           <Stat label="sold" value={String(m.sold)} />
           <Stat
-            label="enquiry → viewing"
+            label="enquiry → appointment"
             value={
-              m.enquiryToViewingRate != null
-                ? `${Math.round(m.enquiryToViewingRate * 100)}%`
+              m.enquiryToAppointmentRate != null
+                ? `${Math.round(m.enquiryToAppointmentRate * 100)}%`
                 : "—"
             }
           />

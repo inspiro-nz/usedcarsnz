@@ -9,6 +9,16 @@ export interface ActionState {
   error?: string;
 }
 
+// The public listing detail page is ISR-cached (revalidate = 300). Any listing
+// mutation (create / status change / mark-sold) invalidates ALL listing-detail
+// pages on demand so the demo never shows a stale price/status. Passing the
+// route pattern with "page" revalidates every dynamic instance without having to
+// reconstruct each listing's exact URL.
+const LISTING_DETAIL_ROUTE = "/cars/[make]/[model]/[year]/[id]";
+function revalidateListings() {
+  revalidatePath(LISTING_DETAIL_ROUTE, "page");
+}
+
 export async function approveDraftAction(
   _prev: ActionState,
   formData: FormData,
@@ -38,6 +48,7 @@ export async function markSoldAction(formData: FormData): Promise<void> {
     Number.isFinite(raw) && raw > 0 ? raw : null,
   );
   revalidatePath("/dealer/leads");
+  revalidateListings(); // the sold listing's public page must reflect it
 }
 
 /** Create a listing AS THE CALLER — RLS proves dealer membership. */
@@ -78,6 +89,7 @@ export async function createListingAction(
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/dealer/listings");
+  revalidateListings(); // surface the new listing on its public detail page
   return { ok: true };
 }
 
@@ -88,4 +100,5 @@ export async function setListingStatusAction(formData: FormData): Promise<void> 
   if (!["active", "paused"].includes(status)) return;
   await sb.from("listings").update({ status }).eq("id", id); // RLS-gated
   revalidatePath("/dealer/listings");
+  revalidateListings(); // pause/reactivate must reflect on the public page
 }

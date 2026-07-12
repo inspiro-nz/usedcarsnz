@@ -1,12 +1,25 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabasePublic } from "@/lib/supabase/public";
 import type { DealerRow, ListingRow } from "@/lib/db/types";
 import { dateNZ, km, listingTitle, nzd } from "@/lib/format";
 import { Badge } from "@/components/marketplace/ui";
 import { EnquiryForm } from "@/app/(marketplace)/cars/enquiry-form";
 
-export const dynamic = "force-dynamic";
+// ISR: listing detail is public, cache-friendly data. Rendered on first request,
+// then served from cache for up to 5 minutes; a listing create / status change /
+// mark-sold invalidates it on demand via revalidatePath in dealer/actions.ts.
+// Uses the cookie-less public client so the page can actually be cached.
+export const revalidate = 300;
+
+// Register the route for on-demand ISR: nothing is prerendered at build (ids are
+// unknown), but returning [] with dynamicParams=true means each listing renders
+// on first request and is then cached/revalidated per `revalidate`. Without this
+// the dynamic-param route stays fully dynamic (no caching) under Next 16.
+export const dynamicParams = true;
+export function generateStaticParams(): Params[] {
+  return [];
+}
 
 interface Params {
   make: string;
@@ -16,7 +29,7 @@ interface Params {
 }
 
 async function getListing(id: string) {
-  const sb = await supabaseServer();
+  const sb = supabasePublic();
   const { data: listing } = await sb
     .from("listings")
     .select("*")

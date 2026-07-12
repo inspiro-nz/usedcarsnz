@@ -16,7 +16,9 @@ export function ListingCard({ listing }: { listing: ListingRow }) {
       href={listingPath(listing)}
       className="group block overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all hover:border-orange-100 hover:shadow-md"
     >
-      <div className="flex h-36 items-center justify-center bg-slate-900">
+      {/* Fixed 16:10 aspect box so the grid never reflows once real photos land
+          (zero CLS) — the skeleton card uses the same ratio. */}
+      <div className="flex aspect-[16/10] items-center justify-center bg-slate-900">
         <span className="text-4xl font-bold text-white/60">{monogram}</span>
       </div>
       <div className="space-y-2 p-4">

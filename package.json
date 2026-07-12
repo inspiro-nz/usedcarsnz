@@ -16,6 +16,7 @@
     "timing-check": "tsx scripts/timing-check.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "demo:reset": "tsx scripts/demo-reset.ts",
+    "latency-check": "tsx scripts/latency-check.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

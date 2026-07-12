@@ -1,0 +1,17 @@
+{
+  "name": "@usedcarsnz/keepalive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Cron Worker: daily keep-alive ping so the free-tier DEMO Supabase project never pauses (Prompt 7).",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260702.1",
+    "typescript": "^5",
+    "wrangler": "^4.97.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  // Standalone daily keep-alive Worker for the DEMO Supabase project (Prompt 7).
+  // Deployed separately from the Next.js app worker (../../wrangler.jsonc) because
+  // the OpenNext app worker has no `scheduled` handler. See src/index.ts.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "usedcarsnz-demo-keepalive",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // Daily at 12:00 UTC (~midnight NZST/NZDT). Any single day's write resets the
+  // free-tier 7-day inactivity timer with a wide safety margin. Cron Triggers are
+  // available on the Workers Free plan.
+  "triggers": {
+    "crons": ["0 12 * * *"]
+  },
+  "vars": {
+    // Non-secret. The DEMO Supabase project's REST base URL. The founder sets the
+    // real value (see docs/infra/demo-standup.md). Must be the demo project, NOT
+    // prod — this Worker writes on every run.
+    "SUPABASE_URL": "https://CHANGE-ME-demo-ref.supabase.co"
+  }
+  // SUPABASE_SECRET_KEY is a SECRET — never put it here. Set it with:
+  //   wrangler secret put SUPABASE_SECRET_KEY   (run in this directory)
+  // Use the DEMO project's secret key. It is used only to insert keepalive_ping.
+}

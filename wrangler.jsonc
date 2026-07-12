@@ -24,5 +24,58 @@
   },
   "observability": {
     "enabled": true
+  },
+
+  // ---------------------------------------------------------------------------
+  // Named environments. The TOP-LEVEL config above is PRODUCTION (`usedcarsnz`)
+  // and is deployed by `npm run deploy` with no `--env` flag — it is untouched
+  // by anything below. `wrangler deploy --env demo` selects the block below.
+  //
+  // Wrangler does NOT inherit bindings/vars/routes into a named environment, so
+  // the demo worker redeclares every binding it needs. Only the demo Supabase
+  // project is different; the Cloudflare bindings (AI/IMAGES/ASSETS/self-ref)
+  // mirror prod. NEXT_PUBLIC_* are build-time-inlined by OpenNext and come from
+  // the CI build env (see .github/workflows/deploy-demo.yml), not from here.
+  // Server secrets (SUPABASE_SECRET_KEY, TURNSTILE_SECRET_KEY, ANTHROPIC_API_KEY,
+  // INBOUND_HMAC_SECRET) are set with `wrangler secret put <NAME> --env demo`
+  // (see docs/infra/demo-standup.md) — never committed.
+  // ---------------------------------------------------------------------------
+  "env": {
+    "demo": {
+      "name": "usedcarsnz-demo",
+      "routes": [
+        // demo.usedcarsnz.co.nz as a Cloudflare custom domain. The zone must be
+        // on this Cloudflare account; the founder adds the DNS/route (runbook).
+        { "pattern": "demo.usedcarsnz.co.nz", "custom_domain": true }
+      ],
+      // Non-secret, environment-scoped config. DEMO_SAMPLE_DATA drives the
+      // "Sample data" badge (lib/metrics-views.ts isSampleData) so seeded numbers
+      // can never be mistaken for measured results (invariant 8 / §9.2 honesty).
+      "vars": {
+        "NEXT_PUBLIC_APP_ENV": "demo",
+        "NEXT_PUBLIC_SITE_URL": "https://demo.usedcarsnz.co.nz",
+        "DEMO_SAMPLE_DATA": "true"
+      },
+      "assets": {
+        "directory": ".open-next/assets",
+        "binding": "ASSETS"
+      },
+      "services": [
+        // Self-reference must point at THIS worker (the demo one).
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "usedcarsnz-demo"
+        }
+      ],
+      "images": {
+        "binding": "IMAGES"
+      },
+      "ai": {
+        "binding": "AI"
+      },
+      "observability": {
+        "enabled": true
+      }
+    }
   }
 }

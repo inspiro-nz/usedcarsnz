@@ -37,18 +37,24 @@ const clientSchema = z.object({
 const AI_PROVIDERS = ["workers-ai", "anthropic"] as const;
 
 const serverSchema = z.object({
-  // Server-only secrets.
-  SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
-  RESEND_API_KEY: z.string().min(1).optional().default(""),
-  OPENAI_API_KEY: z.string().min(1).optional().default(""),
+  // Server-only secrets. Each is OPTIONAL with an empty-string default so a
+  // credential-less local env stays green (the consumers degrade gracefully:
+  // sendEmail logs instead of sending, verifyTurnstile is skipped in non-prod,
+  // etc.). NOTE: do NOT add `.min(1)` here — `z.string().min(1).optional()
+  // .default("")` fails on an ABSENT var, because `.default("")` supplies ""
+  // which then fails `.min(1)`, turning an "optional" secret into a required
+  // one and 500-ing every server path that reads it in local dev.
+  SUPABASE_SECRET_KEY: z.string().optional().default(""),
+  RESEND_API_KEY: z.string().optional().default(""),
+  OPENAI_API_KEY: z.string().optional().default(""),
   // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
-  TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
+  TURNSTILE_SECRET_KEY: z.string().optional().default(""),
 
   // Inbound-email lane (§5.3). Shared HMAC secret between the email-inbound
   // Worker (which signs) and POST /api/inbound/email (which verifies). Optional
   // here so `next build` stays green with an empty env, but the endpoint FAILS
   // CLOSED (503) when it's unset — it never processes an unauthenticated POST.
-  INBOUND_HMAC_SECRET: z.string().min(1).optional().default(""),
+  INBOUND_HMAC_SECRET: z.string().optional().default(""),
   // Where unknown-alias / system-mail notifications go. Empty => log only.
   FOUNDER_EMAIL: z.string().email().optional().or(z.literal("")).default(""),
 

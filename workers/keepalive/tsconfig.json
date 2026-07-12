@@ -1,0 +1,22 @@
+{
+  // Standalone typecheck for the keep-alive Worker. The repo-root tsconfig
+  // EXCLUDES workers/** (its lib is DOM + Next types, wrong for a Worker), so
+  // this config owns the Worker's type surface. Run: `npx tsc -p workers/keepalive`.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022"],
+    "types": ["@cloudflare/workers-types"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"]
+}

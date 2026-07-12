@@ -1,0 +1,81 @@
+name: Deploy demo
+
+# Deploys the DEMO environment ONLY — never production. Production has no CI
+# deploy (it is deployed manually via `npm run deploy`), so nothing here can
+# touch prod: the app job runs `wrangler deploy --env demo`, which selects the
+# `env.demo` block in wrangler.jsonc and the `usedcarsnz-demo` worker.
+#
+# Triggers on push to the long-lived `demo` branch, plus manual dispatch. The
+# founder points `demo` at whatever commit should be live in the demo (usually
+# develop). See docs/infra/demo-standup.md.
+on:
+  push:
+    branches: [demo]
+  workflow_dispatch:
+
+# Never run two demo deploys at once.
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: true
+
+jobs:
+  deploy-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (OpenNext → Cloudflare)
+        # NEXT_PUBLIC_* are inlined at build time, so the DEMO Supabase project and
+        # demo site URL must be present HERE (not just as worker vars). Values come
+        # from repo secrets/vars — set them to the DEMO project (see runbook).
+        env:
+          NEXT_PUBLIC_APP_ENV: demo
+          NEXT_PUBLIC_SITE_URL: https://demo.usedcarsnz.co.nz
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEMO_NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DEMO_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.DEMO_NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+        run: npx opennextjs-cloudflare build
+
+      - name: Deploy demo worker
+        # Server-side secrets (SUPABASE_SECRET_KEY, TURNSTILE_SECRET_KEY,
+        # ANTHROPIC_API_KEY, INBOUND_HMAC_SECRET) are NOT set here — the founder
+        # sets them once with `wrangler secret put <NAME> --env demo` and they
+        # persist across deploys. This step only uploads code + the env.demo vars.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env demo
+
+  deploy-keepalive:
+    # Independent of the app build — deploys the standalone daily keep-alive
+    # Worker (workers/keepalive). Its SUPABASE_SECRET_KEY is a wrangler secret the
+    # founder sets once; this step preserves it across deploys.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy keep-alive worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config workers/keepalive/wrangler.jsonc

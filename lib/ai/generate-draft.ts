@@ -27,17 +27,33 @@ export async function generateDraft(enquiryId: string): Promise<void> {
     .single<EnquiryRow>();
   if (eErr || !enquiry) throw new Error(`enquiry not found: ${eErr?.message}`);
 
-  const { data: listing, error: lErr } = await svc
-    .from("listings")
-    .select("*")
-    .eq("id", enquiry.listing_id)
-    .single<ListingRow>();
-  if (lErr || !listing) throw new Error(`listing not found: ${lErr?.message}`);
-
+  let listing: ListingRow | null = null;
   let dealer: DealerRow | null = null;
-  if (listing.dealer_id) {
-    const { data } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
-    dealer = data ?? null;
+
+  if (enquiry.listing_id) {
+    // Platform-form lead: the listing is authoritative, and the dealer is
+    // derived from it (unchanged path).
+    const { data, error: lErr } = await svc
+      .from("listings")
+      .select("*")
+      .eq("id", enquiry.listing_id)
+      .single<ListingRow>();
+    if (lErr || !data) throw new Error(`listing not found: ${lErr?.message}`);
+    listing = data;
+    if (listing.dealer_id) {
+      const { data: d } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
+      dealer = d ?? null;
+    }
+  } else if (enquiry.dealer_id) {
+    // Listing-less inbound-email lead (§5.3): alias-routed straight to a dealer.
+    // There is no vehicle — draft on the labelled facts (none) + qualification,
+    // deferring every vehicle specific to the dealer via [DEALER TO CONFIRM].
+    const { data: d } = await svc.from("dealers").select("*").eq("id", enquiry.dealer_id).single<DealerRow>();
+    dealer = d ?? null;
+  } else {
+    // Neither a listing nor a dealer: nothing to draft for. Throw so the
+    // swallowing .catch owns it, consistent with trigger.ts's loadContext.
+    throw new Error(`enquiry ${enquiryId} has neither a listing nor a dealer`);
   }
 
   const { data: messageRows } = await svc
@@ -49,7 +65,9 @@ export async function generateDraft(enquiryId: string): Promise<void> {
     .map((m) => m.meta?.dealer_question)
     .filter((q): q is string => Boolean(q));
 
-  const listingFacts = labelledListingFacts(listing);
+  // Listing-less lead: NO facts on file. The prompt renders {} as "(no listing
+  // facts on file)" and drives the whole draft off [DEALER TO CONFIRM] markers.
+  const listingFacts = listing ? labelledListingFacts(listing) : {};
 
   try {
     const provider = getProvider("draft");

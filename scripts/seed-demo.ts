@@ -216,6 +216,18 @@ async function ensureDealer(svc: SupabaseClient, dealer: DemoDealer): Promise<vo
     ownerId = data.user.id;
   }
 
+  // Ensure the public.users profile row exists. The auth->profile sync trigger
+  // (on_auth_user_created) does not fire on the hosted demo project, so relying
+  // on it leaves dealers.owner_user_id dangling and the FK insert below fails.
+  // Do it explicitly and idempotently — the service role bypasses guard_user_row
+  // and RLS, and on the local stack (where the trigger DOES fire) this is a
+  // no-op via ignoreDuplicates.
+  const { error: uErr } = await svc.from("users").upsert(
+    { id: ownerId, role: "buyer", full_name: dealer.ownerName, email: dealer.ownerEmail },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+  if (uErr) throw new Error(`ensure user profile ${dealer.ownerEmail}: ${uErr.message}`);
+
   const { error } = await svc.from("dealers").insert({
     id: dealer.id,
     owner_user_id: ownerId,

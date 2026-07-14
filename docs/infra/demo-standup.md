@@ -61,8 +61,10 @@ npx supabase migration list
 
 ## 2. Seed the demo data (CLI — you do this)
 
-The seed is idempotent and hard-guarded to local/demo. Point a local `.env.local`
-at the **demo** project first (this file is gitignored):
+The seed is idempotent and hard-guarded to local/demo. Create a dedicated
+`.env.demo` (gitignored) for the demo project — the seed/reset scripts prefer it
+over `.env.local`, so the demo credentials never overwrite the local stack's
+`.env.local`:
 
 ```
 NEXT_PUBLIC_APP_ENV=demo
@@ -70,6 +72,9 @@ NEXT_PUBLIC_SUPABASE_URL=https://<demo-ref>.supabase.co
 SUPABASE_SECRET_KEY=<demo project secret key>
 DEMO_SAMPLE_DATA=true
 ```
+
+(`.env.demo` present → `npm run seed:demo` and `npm run demo:reset` target the
+demo project; delete/rename it to go back to seeding the local stack.)
 
 Then run the seed (safe to re-run; it no-ops already-seeded rows):
 

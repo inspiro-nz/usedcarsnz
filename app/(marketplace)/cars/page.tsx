@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabasePublic } from "@/lib/supabase/public";
 import type { ListingRow } from "@/lib/db/types";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Empty, Field, inputCls } from "@/components/marketplace/ui";
 
+// Dynamic: results depend on searchParams (filters), so this page can't be a
+// single ISR entry. The two reads below run in parallel (no waterfall).
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Browse used cars" };
 
@@ -22,7 +24,7 @@ export default async function CarsPage({
   searchParams: Promise<Search>;
 }) {
   const params = await searchParams;
-  const sb = await supabaseServer();
+  const sb = supabasePublic();
 
   let query = sb
     .from("listings")
@@ -41,15 +43,13 @@ export default async function CarsPage({
   if (params.fuel) query = query.eq("fuel", params.fuel);
   if (params.transmission) query = query.eq("transmission", params.transmission);
 
-  const { data } = await query;
+  // Results and the makes facet are independent — fetch them in parallel so the
+  // page never waits on one read before starting the other.
+  const [{ data }, { data: makesRaw }] = await Promise.all([
+    query,
+    sb.from("listings").select("make").eq("status", "active").limit(500),
+  ]);
   const listings = (data ?? []) as ListingRow[];
-
-  // Facet: distinct makes from the visible set (simple v1 facet).
-  const { data: makesRaw } = await sb
-    .from("listings")
-    .select("make")
-    .eq("status", "active")
-    .limit(500);
   const makes = Array.from(
     new Set(((makesRaw ?? []) as { make: string }[]).map((m) => m.make)),
   ).sort();

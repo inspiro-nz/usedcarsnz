@@ -24,17 +24,31 @@ const PROD_PROJECT_REFS = ["geappcqiihbgihcsitkj"];
  * tell seeded history apart from leads created live during a meeting. */
 export const SEED_PREFIX = "demo-seed:";
 
-export function loadEnvLocal(): void {
+function loadEnvFile(name: string): boolean {
   try {
-    for (const line of readFileSync(new URL("../.env.local", import.meta.url), "utf8").split("\n")) {
+    const contents = readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    for (const line of contents.split("\n")) {
       const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
       if (m && process.env[m[1]] === undefined) {
         process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
       }
     }
+    return true;
   } catch {
-    // no .env.local — fall through to the ambient environment
+    return false; // file absent
   }
+}
+
+/**
+ * Load the demo target's env. A dedicated `.env.demo` (gitignored) is PREFERRED so
+ * the demo project's URL/secret never has to be pasted over the local stack's
+ * `.env.local` (which also holds E2E creds + the inbound HMAC secret). When
+ * `.env.demo` is absent, fall back to `.env.local` so local-stack seeding keeps
+ * working unchanged. Ambient env vars still win over both.
+ */
+export function loadEnvLocal(): void {
+  if (loadEnvFile(".env.demo")) return;
+  loadEnvFile(".env.local");
 }
 
 /**

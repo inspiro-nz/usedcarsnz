@@ -91,6 +91,37 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
+        <Section title="Who is responsible for your information">
+          <p>
+            When you enquire on a car, the <strong>dealer</strong> is the business
+            deciding why your information is collected and what happens to it — in
+            Privacy Act terms, the dealer is the agency that collects it.
+            UsedCarsNZ operates the platform and handles the data <strong>on the
+            dealer&apos;s behalf</strong> (a processor role): we run the enquiry
+            forms, the email-lead lane, the acknowledgement, and the response
+            tooling, but the dealer is the one helping you buy a car.
+          </p>
+          <p className="mt-2">
+            For the <strong>email-lead lane</strong> specifically — where a dealer
+            forwards a buyer enquiry from another marketplace to their UsedCarsNZ
+            lead address — the dealer remains the collecting agency; UsedCarsNZ
+            receives and processes that email only to route it and prepare the
+            dealer&apos;s reply.
+          </p>
+        </Section>
+
+        <Section title="Your rights under the Privacy Act 2020">
+          <p>
+            We aim to handle your personal information consistently with the New
+            Zealand <strong>Privacy Act 2020</strong> and its information privacy
+            principles. That includes collecting only what we need, using it only
+            for the reasons described here, keeping it secure, and honouring your
+            right to <strong>access</strong> the information we hold about you and
+            ask us to <strong>correct</strong> it. You can also raise a concern with
+            the Office of the Privacy Commissioner.
+          </p>
+        </Section>
+
         <Section title="Who we share it with">
           <ul className="list-disc space-y-1.5 pl-5">
             <li>The dealer whose car you enquired on.</li>

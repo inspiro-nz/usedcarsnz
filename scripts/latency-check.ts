@@ -11,13 +11,15 @@
  * Budgets (from the Prompt-7 brief):
  *   - search  (/cars)              p75 < 1500ms
  *   - listing (/cars/.../<id>)     p75 < 1500ms
- *   - dashboard (/dealer)          p75 < 1000ms   (needs an authed session cookie)
+ *   - dashboard (/dealer/metrics)  p75 < 1000ms   (needs an authed session cookie)
  *   - enquiry POST (/api/enquiries) p95 < 1000ms  (optional; inserts rows)
  *
  * Config via env (export before running, or put in .env.local):
- *   DEMO_URL                      https://demo.usedcarsnz.co.nz   (required)
- *   CF_ACCESS_CLIENT_ID           Access service-token id         (required)
- *   CF_ACCESS_CLIENT_SECRET       Access service-token secret     (required)
+ *   LATENCY_TARGET_URL            target host (default: DEMO_URL). Point at
+ *                                 http://localhost:3000 to run against local dev.
+ *   DEMO_URL                      https://demo.usedcarsnz.co.nz   (the demo target)
+ *   CF_ACCESS_CLIENT_ID           Access service-token id  (required unless local)
+ *   CF_ACCESS_CLIENT_SECRET       Access service-token secret (required unless local)
  *   LATENCY_SAMPLES               iterations per route (default 20)
  *   DEMO_LISTING_PATH             /cars/toyota/aqua/2016/<uuid>   (else listing SKIP)
  *   DEMO_SESSION_COOKIE           Cookie header for an authed dealer (else dashboard SKIP)
@@ -41,23 +43,34 @@ function loadEnvLocal(): void {
 }
 loadEnvLocal();
 
-const DEMO_URL = (process.env.DEMO_URL ?? "").replace(/\/$/, "");
+// LATENCY_TARGET_URL wins so the check can point at local dev; DEMO_URL is the
+// default (the deployed, Access-gated demo).
+const DEMO_URL = (process.env.LATENCY_TARGET_URL ?? process.env.DEMO_URL ?? "").replace(/\/$/, "");
 const CF_ID = process.env.CF_ACCESS_CLIENT_ID ?? "";
 const CF_SECRET = process.env.CF_ACCESS_CLIENT_SECRET ?? "";
 const SAMPLES = Math.max(5, Number(process.env.LATENCY_SAMPLES ?? 20));
 
-if (!DEMO_URL || !CF_ID || !CF_SECRET) {
+// Local dev is not behind Cloudflare Access, so the service-token headers are
+// neither required nor sent. Any other host is treated as Access-gated.
+const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(DEMO_URL);
+
+if (!DEMO_URL) {
+  console.error("\nSTOP: set LATENCY_TARGET_URL (or DEMO_URL) to the host to probe.\n");
+  process.exit(2);
+}
+if (!isLocal && (!CF_ID || !CF_SECRET)) {
   console.error(
-    "\nSTOP: DEMO_URL, CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be set.\n" +
-      "The demo is behind Cloudflare Access; this check cannot run without them.\n",
+    `\nSTOP: ${DEMO_URL} is behind Cloudflare Access — set CF_ACCESS_CLIENT_ID and\n` +
+      "CF_ACCESS_CLIENT_SECRET, or point LATENCY_TARGET_URL at local dev (localhost).\n",
   );
   process.exit(2);
 }
 
-const accessHeaders: Record<string, string> = {
-  "CF-Access-Client-Id": CF_ID,
-  "CF-Access-Client-Secret": CF_SECRET,
-};
+// Only send the Access headers when we have them (i.e. against the gated demo).
+const accessHeaders: Record<string, string> =
+  CF_ID && CF_SECRET
+    ? { "CF-Access-Client-Id": CF_ID, "CF-Access-Client-Secret": CF_SECRET }
+    : {};
 
 type Percentile = "p75" | "p95";
 interface RouteCheck {
@@ -91,9 +104,9 @@ function buildChecks(): RouteCheck[] {
 
   const cookie = process.env.DEMO_SESSION_COOKIE;
   checks.push({
-    name: "dashboard (/dealer)",
+    name: "dashboard (/dealer/metrics)",
     method: "GET",
-    url: `${DEMO_URL}/dealer`,
+    url: `${DEMO_URL}/dealer/metrics`,
     budgetMs: 1000,
     gateOn: "p75",
     headers: cookie ? { cookie } : undefined,

@@ -134,7 +134,12 @@ export function MarketplaceFooter() {
 
         <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-slate-800 pt-6 text-xs sm:flex-row">
           <p>&copy; {year} UsedCarsNZ. All rights reserved.</p>
-          <p>Built for New Zealand dealerships.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition-colors hover:text-white">
+              Privacy
+            </Link>
+            <p>Built for New Zealand dealerships.</p>
+          </div>
         </div>
       </div>
     </footer>

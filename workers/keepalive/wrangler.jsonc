@@ -20,7 +20,7 @@
     // Non-secret. The DEMO Supabase project's REST base URL. The founder sets the
     // real value (see docs/infra/demo-standup.md). Must be the demo project, NOT
     // prod — this Worker writes on every run.
-    "SUPABASE_URL": "https://CHANGE-ME-demo-ref.supabase.co"
+    "SUPABASE_URL": "https://ttwsmrsgdqzjnobflihd.supabase.co"
   }
   // SUPABASE_SECRET_KEY is a SECRET — never put it here. Set it with:
   //   wrangler secret put SUPABASE_SECRET_KEY   (run in this directory)

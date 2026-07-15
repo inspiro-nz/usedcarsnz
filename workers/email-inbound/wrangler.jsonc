@@ -18,7 +18,7 @@
     // Must be a VERIFIED Email Routing destination that is NOT on this zone —
     // forwarding a usedcarsnz.co.nz address back through the catch-all would
     // LOOP. Use the founder's external inbox. See docs/infra/email-routing.md.
-    "FOUNDER_FORWARD_ADDRESS": "CHANGE-ME-external-verified@example.com"
+    "FOUNDER_FORWARD_ADDRESS": "inspiroanalytics+founderforward@gmail.com"
   }
   // INBOUND_HMAC_SECRET is a SECRET — never put it here. Set it with:
   //   wrangler secret put INBOUND_HMAC_SECRET   (run in this directory)

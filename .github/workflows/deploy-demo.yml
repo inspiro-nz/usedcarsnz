@@ -79,3 +79,53 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config workers/keepalive/wrangler.jsonc
+
+  deploy-outbox-sweep:
+    # Standalone Cron Worker (workers/outbox-sweep): drains the ack retry queue
+    # every 15 min by POSTing the app's /api/cron/outbox-sweep. NOTE: its
+    # TARGET_URL defaults to PROD — this job ships code + vars only; the founder
+    # sets CRON_SECRET (and CF_ACCESS_* if the target is behind Access) once with
+    # `wrangler secret put`, and they persist across deploys.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy outbox-sweep worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config workers/outbox-sweep/wrangler.jsonc
+
+  deploy-raw-email-purge:
+    # Standalone Cron Worker (workers/raw-email-purge): daily purge of inbound raw
+    # MIME older than 30 days (Privacy Act) by POSTing /api/cron/purge-raw-email.
+    # Same secret model as outbox-sweep; TARGET_URL also defaults to PROD.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy raw-email-purge worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config workers/raw-email-purge/wrangler.jsonc

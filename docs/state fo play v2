@@ -1,0 +1,145 @@
+# UsedCarsNZ — State of Play & Next Steps (Update 3)
+
+**15 July 2026 | Re-audited against `inspiro-nz/usedcarsnz` @ `develop` (actual code)**
+**Supersedes the 14 July Update 2.**
+
+---
+
+## What changed since Update 2 (14 July)
+
+**The single remaining code gap is closed.** Update 2 flagged that the two new
+cron workers (`outbox-sweep`, `raw-email-purge`) existed in the repo but were not
+deployed by any CI workflow. They are now wired into `deploy-demo.yml` as two new
+jobs (`deploy-outbox-sweep`, `deploy-raw-email-purge`), mirroring `deploy-keepalive`.
+
+- Each job ships **code + vars only**. Their `CRON_SECRET` (and `CF_ACCESS_*` if the
+  target is behind Access) remain `wrangler secret put` secrets the founder sets once.
+- **Semantics to know:** both workers' `TARGET_URL` defaults to **PROD**
+  (`usedcarsnz.co.nz/api/cron/*`), but the only CI in the repo is `deploy-demo.yml`
+  (triggered by pushes to the `demo` branch). So they deploy on demo-branch pushes.
+  Re-deploys are idempotent; this is the pragmatic wiring given prod has no CI of its
+  own. If a dedicated prod-cron workflow is ever wanted, split them out then.
+
+**Also confirmed merged to `develop`:** `feature/prompt7-closeout` (PR #30) and the
+listing-less draft fix (PR #31). The "verification gate" from Update 2 is therefore
+**moot** — that branch is already on `develop`. Nothing to merge.
+
+Everything else Update 2 verified as done (latency-check, DEMO_RUNBOOK, `/privacy`,
+image compression, page ISR, noindex, roadmap) remains done.
+
+---
+
+## Where you now stand
+
+**Code: done.** Prompts 0–8 complete, and the cron-worker CI gap is closed. There is
+**nothing left to build or wire in the repo for the demo.**
+
+Two CHANGE-ME placeholders still sit in the repo **by design** — they're per-founder
+values, not code bugs, and can only be filled with values you supply:
+- `workers/keepalive/wrangler.jsonc` line 23 → demo Supabase URL (never prod)
+- `workers/email-inbound/wrangler.jsonc` line 21 → founder external forward address
+
+**Everything remaining is founder/dashboard/human, not engineering.**
+
+---
+
+## Next steps — the critical path to a live demo
+
+All of PART A (code) is complete. This is now configuration and conversations.
+
+### ⚠️ ZERO — 2 minutes, do it first
+- [ ] Confirm `.env.local`'s `NEXT_PUBLIC_SUPABASE_URL` is the **local** Docker URL
+  (`http://127.0.0.1:54321`), **not** `geappcqiihbgihcsitkj`. One `supabase db reset`
+  against a prod-pointing config destroys production. Still the highest-severity item.
+
+### STEP 1 — Fill the two CHANGE-ME placeholders (5 min)
+- [ ] `workers/keepalive/wrangler.jsonc` line 23 → real **demo** Supabase URL.
+- [ ] `workers/email-inbound/wrangler.jsonc` line 21 → verified **external** inbox
+  (not `@usedcarsnz.co.nz`, or the catch-all loops).
+
+  *(Claude Code can make both edits in seconds once you give it the two values.)*
+
+### STEP 2 — Supabase demo project (15 min, dashboard + CLI)
+- [ ] Confirm `usedcarsnz-demo` exists (Sydney, free tier); record ref + keys.
+- [ ] Push migrations to demo (`docs/infra/demo-standup.md` §1).
+- [ ] `npm run seed:demo` against demo (§2).
+
+### STEP 3 — Secrets (15 min, one command per line, never `&&`)
+App worker (`--env demo`): `SUPABASE_SECRET_KEY`, `TURNSTILE_SECRET_KEY`,
+`ANTHROPIC_API_KEY`, `INBOUND_HMAC_SECRET`, `RESEND_API_KEY`.
+```
+npx wrangler secret put SUPABASE_SECRET_KEY --env demo
+```
+(...repeat per secret.)
+Worker secrets:
+- `keepalive` → `SUPABASE_SECRET_KEY`
+- `email-inbound` → `INBOUND_HMAC_SECRET` (**identical** to the app's)
+- `outbox-sweep` → `CRON_SECRET` (shared with the app's `CRON_SECRET`; + `CF_ACCESS_*` only if target behind Access)
+- `raw-email-purge` → `CRON_SECRET` (same)
+
+GitHub repo secrets for `deploy-demo.yml`: `DEMO_NEXT_PUBLIC_SUPABASE_URL`,
+`DEMO_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DEMO_NEXT_PUBLIC_TURNSTILE_SITE_KEY`,
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+
+### STEP 4 — Cloudflare Zero Trust / Access (25 min, dashboard)
+Follow `docs/infra/demo-standup.md` §6.
+- [ ] Zero Trust org (Free plan) → One-time PIN identity provider.
+- [ ] Self-hosted Access app for `demo.usedcarsnz.co.nz` (all paths); policy Allow →
+  your email(s); 1-week session.
+- [ ] Service token `demo-machine`; second policy Action = Service Auth. Store Client
+  ID/Secret for `latency-check` + email-inbound worker.
+
+### STEP 5 — Create the `demo` branch and deploy (10 min)
+```
+git checkout develop
+```
+```
+git pull
+```
+```
+git checkout -b demo
+```
+```
+git push -u origin demo
+```
+- [ ] Watch `deploy-demo.yml` go green — it now deploys **five** things: app,
+  keepalive, outbox-sweep, raw-email-purge, and (via the app build) the marketplace.
+
+### STEP 6 — Verify (30 min)
+- [ ] From a phone, private window: `demo.usedcarsnz.co.nz` shows the Access PIN page,
+  not a listing.
+- [ ] `npm run latency-check` against the deployed demo passes all budgets.
+- [ ] One full `DEMO_RUNBOOK.md` dry-run, start to finish. Capture the screen-recording
+  fallback.
+
+### STEP 7 — Email Routing (20 min — required for pilot, not demo)
+Follow `docs/infra/email-routing.md`. **Run the DNS collision check against Resend
+carefully** (§4).
+
+---
+
+## Not blocking the demo (unchanged, still real)
+
+1. **Legal consult — URGENT.** CCCFA→FMA transfer completed; the finance-referral
+   deferral anchor is gone. Privacy page is live but placeholder — lawyer must review
+   the copy, plus FTA/CGA scope, the pilot-agreement data-processing clause, and the
+   advice-vs-referral bright line. The Privacy Act posture is now defensible in code
+   (the purge cron exists *and* is deployed by CI) — but the copy still needs review.
+2. **Production deploy** of the marketplace slice (`main` has it; no prod Supabase
+   secrets on the worker).
+3. **Marketplace-primary vs tool-first** — resolves via the forcing question in the
+   five dealer conversations.
+4. **Five dealer conversations** — run on the pitch + mystery-shopper data + the demo.
+5. **Motorcentral** — sequenced post-pilot.
+
+---
+
+## Bottom line
+
+The engineering phase is **over**. Code is complete and the last CI gap is closed —
+the two crons now ship automatically. What remains is a Cloudflare/Supabase afternoon
+of configuration (Steps 1–6), then the demo is live.
+
+The two things not to let slip: **book the lawyer** (the finance line has no runway
+left before sign-off), and, before the pilot, **wire Email Routing** carefully against
+the Resend DNS collision check.

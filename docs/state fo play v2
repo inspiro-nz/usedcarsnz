@@ -52,12 +52,13 @@ All of PART A (code) is complete. This is now configuration and conversations.
   (`http://127.0.0.1:54321`), **not** `geappcqiihbgihcsitkj`. One `supabase db reset`
   against a prod-pointing config destroys production. Still the highest-severity item.
 
-### STEP 1 — Fill the two CHANGE-ME placeholders (5 min)
-- [ ] `workers/keepalive/wrangler.jsonc` line 23 → real **demo** Supabase URL.
-- [ ] `workers/email-inbound/wrangler.jsonc` line 21 → verified **external** inbox
-  (not `@usedcarsnz.co.nz`, or the catch-all loops).
-
-  *(Claude Code can make both edits in seconds once you give it the two values.)*
+### STEP 1 — Fill the two CHANGE-ME placeholders ✅ DONE (in PR #32)
+- [x] `workers/keepalive/wrangler.jsonc` → demo Supabase URL
+  (`ttwsmrsgdqzjnobflihd`, confirmed not prod).
+- [x] `workers/email-inbound/wrangler.jsonc` → external inbox
+  (`inspiroanalytics+founderforward@gmail.com`).
+  - [ ] **Still required:** verify that address as a Cloudflare Email Routing
+    **destination** before inbound forwarding works (Step 7 / `email-routing.md`).
 
 ### STEP 2 — Supabase demo project (15 min, dashboard + CLI)
 - [ ] Confirm `usedcarsnz-demo` exists (Sydney, free tier); record ref + keys.

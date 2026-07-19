@@ -47,9 +47,10 @@ baseline design — both drafted as ⚠ FOUNDER DECISION blocks in Strategy v5.7
    conversation, per the decision rule in Strategy v5.7 (Exec Summary — covers
    4–5 / 2–3 / 0–1 yes outcomes). Write it down, dated. The strategy rewrite
    around the winner is v5.8. The fork does not roll to a sixth version.
-4. **Legal consult held**; pilot agreement drafted (data-processing +
-   AI-labelled-response authorisation + 30-day retention + the chosen baseline
-   design); `/privacy` copy to the lawyer.
+4. **Legal consult held.** A founder-prepared pilot-agreement scaffold already
+   exists (`docs/legal/pilot-agreement-DRAFT.md`, with [LAWYER: …] markers and
+   the baseline options in Schedule A) — the lawyer reviews and rewrites it
+   rather than starting blank; `/privacy` copy to the same consult.
 5. **Choose the pilot baseline design** (§5 ⚠ FOUNDER DECISION: mystery-shop
    per dealer / BCC quiet period / labelled self-report) — before any pilot
    dealer goes live.

@@ -30,7 +30,9 @@ baseline design — both drafted as ⚠ FOUNDER DECISION blocks in Strategy v5.7
    `npm run latency-check` green; capture the screen-recording fallback.
 4. **Book the lawyer** (the calendar item this week; the meeting can be next):
    FTA/CGA AI scope, finance-referral bright line post-CCCFA→FMA, `/privacy`
-   copy, pilot agreement. No referral revenue before this consult — hard rule.
+   copy, pilot agreement. **Send `docs/legal/legal-consult-brief.md` with the
+   booking** — it scopes the four workstreams so the solicitor can quote a
+   fixed fee. No referral revenue before this consult — hard rule.
 5. **Book the five dealer visits** from the top-25 call-first cohort.
 
 ## Next 30 days (by Tue 18 Aug) — buy the evidence
@@ -38,7 +40,10 @@ baseline design — both drafted as ⚠ FOUNDER DECISION blocks in Strategy v5.7
 1. **Mystery-shopper baseline:** enquire on ~10 Christchurch Trade Me /
    AutoTrader listings; record median first-response time. This first-party
    number replaces the US studies in every conversation (zero attribution
-   risk — never say "Harvard").
+   risk — never say "Harvard"). **Method + capture log:
+   `docs/mystery-shopper-protocol.md`** — follow it so the number is
+   defensible; ideally start it in the 5-day window so it's fresh for the
+   first meeting.
 2. **Hold the five dealer conversations**, demo in hand: listen first, demo
    second, and ask the price-anchored forcing question verbatim before leaving
    ("…for something like $150 a month?"). Record answers in the

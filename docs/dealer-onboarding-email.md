@@ -20,8 +20,8 @@ we route leads to the right dealer, so it has to be exact).
 
 > **Privacy:** forwarded buyer emails are processed under the pilot agreement.
 > The original email is retained for **30 days** for troubleshooting, then
-> automatically deleted. See the pilot agreement, clause *Data handling &
-> retention*.
+> automatically deleted. See the pilot agreement's privacy and retention
+> clauses (draft: `docs/legal/pilot-agreement-DRAFT.md`, clause 5).
 
 ---
 

@@ -51,8 +51,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # Matches ci.yml (next@16.2 engines floor >= 20.9.0).
-          node-version: "20"
+          # 22, not ci.yml's 20: scripts/ensure-e2e-user.ts creates a
+          # supabase-js client, and @supabase/realtime-js needs the native
+          # WebSocket that ships in Node 22+ (Node 20 dies with "native
+          # WebSocket not found"). next@16.2's engines floor is >= 20.9.0,
+          # so 22 satisfies the app too.
+          node-version: "22"
           cache: npm
 
       - name: Install dependencies

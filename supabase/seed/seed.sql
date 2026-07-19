@@ -14,16 +14,25 @@
 
 -- 1) Auth user to own the dealer. Inserting into auth.users fires the
 --    on_auth_user_created trigger, which creates the public.users profile.
+--    The token/change columns must be '' not NULL: GoTrue scans them as Go
+--    strings, and a NULL anywhere in auth.users makes every /admin/users list
+--    call 500 with "Database error finding users" — which breaks
+--    scripts/ensure-e2e-user.ts's repair path (it lists users when the E2E
+--    user already exists).
 insert into auth.users (
   instance_id, id, aud, role, email, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change, email_change_token_new,
+  email_change_token_current, phone_change, phone_change_token,
+  reauthentication_token
 )
 values (
   '00000000-0000-0000-0000-000000000000',
   '00000000-0000-0000-0000-0000000000a1',
   'authenticated', 'authenticated', 'seed-dealer@example.com', now(),
   '{"provider":"email","providers":["email"]}',
-  '{"full_name":"Seed Dealer"}', now(), now()
+  '{"full_name":"Seed Dealer"}', now(), now(),
+  '', '', '', '', '', '', '', ''
 )
 on conflict (id) do nothing;
 

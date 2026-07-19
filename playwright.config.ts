@@ -8,7 +8,8 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
 /**
- * Browser smoke tests — LOCAL ONLY for now (see docs/testing.md).
+ * Browser smoke tests — run locally and in CI (.github/workflows/e2e.yml
+ * boots an ephemeral Supabase stack in the runner; see docs/testing.md).
  *
  * Deliberately thin: a safety net over the highest-value journeys (landing,
  * marketplace, sign-in), not an exhaustive suite. Chromium only for v1.
@@ -33,9 +34,13 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
-  // Boots `next dev` and waits for it. Locally, reuse an already-running server.
+  // Boots the app and waits for it. Locally: `next dev`, reusing an already-
+  // running server. In CI (.github/workflows/e2e.yml): the PRODUCTION server —
+  // the workflow runs `next build` first, then `npm run start` here. CI cannot
+  // use `next dev` because initOpenNextCloudflareForDev() (next.config.js)
+  // spawns a wrangler proxy that needs Cloudflare auth the runner doesn't have.
   webServer: {
-    command: "npm run dev",
+    command: process.env.CI ? "npm run start" : "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

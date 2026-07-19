@@ -1,0 +1,112 @@
+name: E2E
+
+# Browser E2E (Playwright) against an EPHEMERAL Supabase stack that the Supabase
+# CLI boots inside this runner (DB + Auth + REST + Storage). Nothing cloud is
+# ever touched: this job must NEVER point at demo or prod. The Supabase keys
+# exported below are the CLI's public local-dev defaults (not secrets), and the
+# E2E sign-in credentials are throwaway values that only exist inside this
+# job's stack — both are deliberately plain env, not repo secrets.
+#
+# AI safety: no live AI provider is reachable from this job. lib/env.ts only
+# allows workers-ai | anthropic (there is no env-selectable mock adapter — the
+# Vitest suite mocks at module level instead). workers-ai needs the Cloudflare
+# AI binding, which does not exist under `next start`; anthropic needs
+# ANTHROPIC_API_KEY, which this workflow never sets. The specs themselves stay
+# on landing/marketplace/sign-in and never trigger an AI lane.
+#
+# Server decision (test-harness design left dev-vs-prod to T1): PRODUCTION
+# server — `npm run build` here, then playwright.config.ts runs `npm run start`
+# as its webServer whenever CI is set. Two reasons:
+#   1. `next dev` runs initOpenNextCloudflareForDev() (next.config.js), which
+#      spawns a wrangler proxy for the remote AI binding and needs Cloudflare
+#      auth — a credential-less runner cannot do that.
+#   2. Less flake and closer to reality: no on-demand route compilation.
+# NEXT_PUBLIC_* values are inlined at build time, so the build step must run
+# AFTER the stack keys are exported to $GITHUB_ENV.
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+# One run per PR/branch; a new push supersedes the in-flight run.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_APP_ENV: local
+      # Throwaway creds for the ephemeral stack's auto-seeded sign-in user
+      # (scripts/ensure-e2e-user.ts). Plain env on purpose — see header.
+      E2E_TEST_EMAIL: e2e-ci@example.com
+      E2E_TEST_PASSWORD: e2e-ci-throwaway-Passw0rd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # 22, not ci.yml's 20: scripts/ensure-e2e-user.ts creates a
+          # supabase-js client, and @supabase/realtime-js needs the native
+          # WebSocket that ships in Node 22+ (Node 20 dies with "native
+          # WebSocket not found"). next@16.2's engines floor is >= 20.9.0,
+          # so 22 satisfies the app too.
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v3
+
+      - name: Start ephemeral Supabase stack
+        run: supabase start
+
+      - name: Reset database (migrations + seed.sql)
+        # Redundant on a pristine runner (start already migrates + seeds), but
+        # guarantees a deterministic schema even if start's behaviour or the
+        # runner image ever changes. Cheap belt-and-braces.
+        run: supabase db reset
+
+      - name: Export local stack keys into env
+        # Public local-dev defaults, not secrets. stdout of `status -o json` is
+        # clean JSON (warnings go to stderr).
+        run: |
+          STATUS=$(supabase status -o json)
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(echo "$STATUS" | jq -er .API_URL)"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(echo "$STATUS" | jq -er .PUBLISHABLE_KEY)"
+            echo "SUPABASE_SECRET_KEY=$(echo "$STATUS" | jq -er .SECRET_KEY)"
+          } >> "$GITHUB_ENV"
+
+      - name: Seed E2E sign-in user
+        # Hard-guarded to local URLs inside the script itself.
+        run: npm run e2e:setup
+
+      - name: Seed demo listings
+        # Hard-guarded local/demo (scripts/demo-data.ts assertDemoTarget); gives
+        # the marketplace specs real listings so the detail test doesn't skip.
+        run: npm run seed:demo
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build (production server)
+        run: npm run build
+
+      - name: Run Playwright suite
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

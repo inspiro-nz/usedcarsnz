@@ -4,8 +4,8 @@ Two layers, kept separate:
 
 | Layer | Runner | Runs in CI? | Command |
 | --- | --- | --- | --- |
-| Unit / logic | Vitest (Node) | ✅ yes | `npm test` |
-| Browser smoke (E2E) | Playwright (Chromium) | ❌ local only | `npm run test:e2e` |
+| Unit / logic | Vitest (Node) | ✅ `ci.yml` | `npm test` |
+| Browser smoke (E2E) | Playwright (Chromium) | ✅ `e2e.yml` (PRs into `develop`) | `npm run test:e2e` |
 
 ## Unit tests (Vitest)
 
@@ -17,7 +17,7 @@ Runs every `*.test.ts` under `lib/` and `app/` in a Node environment (95 tests).
 Playwright specs live in `e2e/` and are **excluded** from the Vitest run
 (`vitest.config.ts`), so the two runners never collide.
 
-## Browser E2E (Playwright) — local only
+## Browser E2E (Playwright)
 
 Playwright drives a real Chromium against a dev server it boots for you
 (`webServer: npm run dev` in `playwright.config.ts`). You do **not** need to start
@@ -78,9 +78,35 @@ vars are absent.
    The user must be **confirmed** (`email_confirm: true` / Auto Confirm), or
    sign-in returns "Email not confirmed" and the happy-path test fails.
 
-> ⚠️ The default `.env.local` points at the **production** Supabase project. Prefer
-> a local or a dedicated test Supabase project for E2E so you're not creating test
-> users in production. Promoting E2E into CI later requires exactly that (see below).
+> ⚠️ Point `.env.local` at the **local** Supabase stack for E2E work.
+> `ensure-e2e-user.ts` refuses non-local URLs outright, so a `.env.local` aimed at
+> a hosted project makes `e2e:setup` fail by design — never create test users in
+> demo or production.
+
+## Browser E2E in CI (`e2e.yml`)
+
+`.github/workflows/e2e.yml` runs the whole Playwright suite on every PR into
+`develop` (plus manual `workflow_dispatch`), with **no cloud project and no
+repo secrets**. The old note here claiming CI E2E needs a test Supabase project
+was wrong — the Supabase CLI boots the full stack (DB, Auth, REST, Storage)
+inside the Actions runner:
+
+1. `supabase start` + `supabase db reset` — ephemeral stack, migrations +
+   `supabase/seed/seed.sql` applied.
+2. The stack's keys are read from `supabase status -o json` into env
+   (`API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, `PUBLISHABLE_KEY`, `SECRET_KEY`).
+   These are the CLI's public local-dev defaults, not secrets.
+3. `npm run e2e:setup` seeds the sign-in user from throwaway
+   `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` set as plain workflow env; then
+   `npm run seed:demo` gives the marketplace specs real listings.
+4. `npm run build`, then Playwright boots the **production** server
+   (`npm run start`) as its `webServer` — CI can't use `next dev` because the
+   OpenNext dev shim needs Cloudflare auth (see `playwright.config.ts`).
+5. On failure the `playwright-report/` HTML report is uploaded as an artifact.
+
+No live AI provider is reachable from the job: the `workers-ai` adapter needs
+the Cloudflare AI binding (absent under `next start`) and the `anthropic`
+adapter needs `ANTHROPIC_API_KEY` (never set there).
 
 ## What CI runs automatically
 
@@ -112,9 +138,7 @@ reference them in the build step, e.g.:
 
 ## Not covered (yet)
 
-- Browser E2E in CI — **planned, designed, and prompt-ready**: see
-  `prompts/test-harness-design.md` and `prompts/PROMPT-T1.md`. (The old note
-  here said CI E2E needs a cloud test Supabase project; it doesn't — the
-  Supabase CLI boots the full stack inside the Actions runner with no secrets.)
+- DB-boundary invariant/RLS tests and the money-shot browser journey — designed
+  and prompt-ready: `prompts/PROMPT-T2.md` and `prompts/PROMPT-T3.md`.
 - Any coverage of the bounded AI layer (already has its own Vitest suite),
   registration/dealer flows, enquiry submission, and password reset.

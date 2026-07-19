@@ -34,7 +34,7 @@ Runs on PRs into `develop` (and manual dispatch). Shape:
 
 ```
 jobs.e2e:
-  supabase/setup-cli@v1  →  supabase start  →  supabase db reset   # migrations + seed.sql
+  supabase/setup-cli@v3  →  supabase start  →  supabase db reset   # migrations + seed.sql
   read local keys from `supabase status -o json` into env          # NEXT_PUBLIC_SUPABASE_URL,
                                                                    # publishable + secret keys
   npm ci  →  npx playwright install --with-deps chromium
@@ -51,18 +51,27 @@ Design decisions the packages must respect:
   defaults; nothing cloud is touched. Never point CI E2E at demo or prod.
 - **Make it a required check** once green twice in a row — a non-blocking
   E2E job rots.
-- **AI lanes run on the deterministic mock adapter in CI** (the same offline
-  default the Vitest suite uses — see `lib/ai/provider.ts` / `lib/env.ts` for
-  the `AI_PROVIDER_*` switches). CI must never spend Neurons/tokens or flake
-  on a live model.
+- **No live AI provider is reachable in CI** — CI must never spend
+  Neurons/tokens or flake on a live model. *(Corrected by T1: there is no
+  env-selectable mock adapter — `lib/env.ts` only allows
+  `workers-ai | anthropic`; the Vitest suite mocks at module level via
+  `vi.mock`, not env.)* CI safety is by absence instead: the `workers-ai`
+  adapter needs the Cloudflare AI binding (absent under `next start`), and
+  `anthropic` needs `ANTHROPIC_API_KEY` (never set in `e2e.yml`). **T3 must
+  solve mocking for real** (its journey exercises the AI lanes): either an
+  env-gated deterministic adapter added behind `getProvider()` or a seeded
+  pre-armed draft that avoids live generation — decide in-package.
 - **T2's SQL-boundary tests reuse the same booted stack** in the same
   workflow (a second step, not a second stack) to keep CI minutes down.
 - **Keep `ci.yml`'s gate job untouched** — it is fast and battle-tested; the
   e2e job is additive.
 - Dev-server (`next dev`) vs production server (`next build && next start`)
-  for the Playwright `webServer` in CI: T1 decides, preferring prod-mode if
-  it works without fights (less flake, closer to reality), dev-mode as the
-  acceptable fallback (it is what the config does locally today).
+  for the Playwright `webServer` in CI: **T1 decided prod-mode**, and it is
+  not merely preferable but forced — `next dev` runs
+  `initOpenNextCloudflareForDev()` (next.config.js), which spawns a wrangler
+  proxy for the remote AI binding and needs Cloudflare auth the runner
+  doesn't have. `playwright.config.ts` switches its `webServer` command on
+  `process.env.CI`.
 
 ## Sequencing
 

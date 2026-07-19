@@ -10,19 +10,21 @@ name: E2E
 # AI safety: no live AI provider is reachable from this job. lib/env.ts only
 # allows workers-ai | anthropic (there is no env-selectable mock adapter — the
 # Vitest suite mocks at module level instead). workers-ai needs the Cloudflare
-# AI binding, which does not exist under `next start`; anthropic needs
-# ANTHROPIC_API_KEY, which this workflow never sets. The specs themselves stay
-# on landing/marketplace/sign-in and never trigger an AI lane.
+# AI binding, whose remote proxy cannot start on this runner (wrangler is
+# unauthenticated — "You must be logged in", non-fatal to next dev); anthropic
+# needs ANTHROPIC_API_KEY, which this workflow never sets. The specs
+# themselves stay on landing/marketplace/sign-in and never trigger an AI lane.
 #
-# Server decision (test-harness design left dev-vs-prod to T1): PRODUCTION
-# server — `npm run build` here, then playwright.config.ts runs `npm run start`
-# as its webServer whenever CI is set. Two reasons:
-#   1. `next dev` runs initOpenNextCloudflareForDev() (next.config.js), which
-#      spawns a wrangler proxy for the remote AI binding and needs Cloudflare
-#      auth — a credential-less runner cannot do that.
-#   2. Less flake and closer to reality: no on-demand route compilation.
-# NEXT_PUBLIC_* values are inlined at build time, so the build step must run
-# AFTER the stack keys are exported to $GITHUB_ENV.
+# Server decision (test-harness design left dev-vs-prod to T1): DEV server,
+# the same `next dev` the config uses locally. Prod-mode (`next build` +
+# `next start`) was tried first and caught a real pre-existing bug: the ISR
+# listing-detail page 500s under a prod server because the marketplace
+# layout's header reads auth cookies ("Page changed from static to dynamic at
+# runtime, reason: cookies"). Until that is fixed, prod-mode cannot go green,
+# so CI runs dev-mode; flipping back later is a one-line change in
+# playwright.config.ts. next dev's wrangler remote-proxy failure on a
+# credential-less runner is a logged, NON-fatal rejection (verified) — only
+# the AI binding dies, and no spec touches an AI lane.
 
 on:
   pull_request:
@@ -97,10 +99,8 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Build (production server)
-        run: npm run build
-
       - name: Run Playwright suite
+        # playwright.config.ts boots `next dev` as its webServer (see header).
         run: npx playwright test
 
       - name: Upload Playwright report

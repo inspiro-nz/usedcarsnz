@@ -142,11 +142,15 @@ values ('<dealer-uuid>', 'lead-addington-autos', 'trademe', true);
 
 ---
 
-## Deferred (Prompt 7, not part of this setup)
+## Related (updated 19 July 2026 — the crons are no longer deferred)
 
-- **CRON** for `public.purge_inbound_email_raw()` (30-day raw-MIME purge) and the
-  `email_outbox` sweep. The purge function exists; nothing calls it on a schedule
-  yet.
-- If the app is later put behind **Cloudflare Access**, the Worker's POST needs a
-  **service token** (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) added to
-  `action.signed.headers`. Local dev and a public endpoint need none.
+- The 30-day raw-MIME **purge** and the `email_outbox` **sweep** are now
+  standalone Cron Workers (`workers/raw-email-purge`, `workers/outbox-sweep`),
+  deployed by `deploy-demo.yml` with `TARGET_URL` overridden to the demo host
+  at deploy time. See `docs/infra/cron-schedules.md` and
+  `docs/infra/demo-standup.md` §4.
+- If the app the email Worker POSTs to is behind **Cloudflare Access** (the
+  demo is), the Worker's POST needs a **service token**
+  (`CF-Access-Client-Id` / `CF-Access-Client-Secret`) added to its request
+  headers — same pattern as the cron Workers. Local dev and a public endpoint
+  need none.

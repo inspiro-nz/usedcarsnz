@@ -17,13 +17,13 @@ Related: `docs/infra/demo-standup.md` (one-time stand-up), `docs/infra/cron-sche
 
 Do this the day before, not on the morning of.
 
-```
-git checkout demo
-git pull
-git push origin demo        # triggers the demo deploy workflow
-```
-
+- [ ] Refresh the demo: GitHub → **Actions** → **Promote demo** → **Run
+  workflow** (leave `ref` as `develop`). This re-points the `demo` branch and
+  dispatches the deploy. *(Fallback if Actions is down: `git checkout -B demo
+  develop` then `git push -u origin demo --force`.)*
 - [ ] Confirm the demo deploy succeeded (GitHub Actions → Deploy demo → green).
+- [ ] Confirm `email_outbox` has no stuck rows (sweep cron healthy — a growing
+  outbox means acks are failing to send).
 - [ ] Seed the demo data (against the demo project — the script refuses prod):
 
 ```
@@ -64,8 +64,11 @@ npm run demo:reset
   open `/cars`, one listing, and `/dealer` so they are cached.
 - [ ] On the **laptop**: open the dealer **lead inbox** (`/dealer/leads`).
 - [ ] On the **phone**: open the **listing** you'll enquire on.
-- [ ] **Dry-run one enquiry end to end** yourself (phone → inbox → approve) to
-  confirm the whole chain is live right now.
+- [ ] **Dry-run one enquiry end to end** yourself (phone → inbox → approve),
+  **and confirm the ack email actually arrived in the buyer inbox on the
+  phone** — if it did not, `RESEND_API_KEY` is missing on the demo worker;
+  fix before the dealer arrives. The inbox entry appearing is NOT proof the
+  email sent.
 - [ ] Reset once more so the dealer sees a clean board:
 
 ```

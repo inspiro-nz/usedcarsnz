@@ -82,10 +82,13 @@ jobs:
 
   deploy-outbox-sweep:
     # Standalone Cron Worker (workers/outbox-sweep): drains the ack retry queue
-    # every 15 min by POSTing the app's /api/cron/outbox-sweep. NOTE: its
-    # TARGET_URL defaults to PROD — this job ships code + vars only; the founder
-    # sets CRON_SECRET (and CF_ACCESS_* if the target is behind Access) once with
-    # `wrangler secret put`, and they persist across deploys.
+    # every 15 min by POSTing the app's /api/cron/outbox-sweep. This is the DEMO
+    # deploy, so TARGET_URL is overridden to the demo host here (--var at deploy
+    # time); the wrangler.jsonc prod default applies only to a manual deploy
+    # outside CI. Do NOT set vars in the dashboard — deploys clobber them
+    # (--keep-vars defaults to false). The founder sets CRON_SECRET and the
+    # CF_ACCESS_* pair (demo is behind Access) once with `wrangler secret put`;
+    # secrets persist across deploys.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -104,12 +107,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config workers/outbox-sweep/wrangler.jsonc
+        run: npx wrangler deploy --config workers/outbox-sweep/wrangler.jsonc --var TARGET_URL:https://demo.usedcarsnz.co.nz/api/cron/outbox-sweep
 
   deploy-raw-email-purge:
     # Standalone Cron Worker (workers/raw-email-purge): daily purge of inbound raw
     # MIME older than 30 days (Privacy Act) by POSTing /api/cron/purge-raw-email.
-    # Same secret model as outbox-sweep; TARGET_URL also defaults to PROD.
+    # Same secret model and TARGET_URL override as deploy-outbox-sweep above —
+    # this purge is the mechanism behind the /privacy page's 30-day retention
+    # claim, so it must target the environment that actually holds raw emails.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -128,4 +133,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config workers/raw-email-purge/wrangler.jsonc
+        run: npx wrangler deploy --config workers/raw-email-purge/wrangler.jsonc --var TARGET_URL:https://demo.usedcarsnz.co.nz/api/cron/purge-raw-email

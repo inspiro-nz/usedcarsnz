@@ -111,6 +111,33 @@ No live AI provider is reachable from the job: the `workers-ai` adapter's
 binding proxy can't start without Cloudflare auth, and the `anthropic`
 adapter needs `ANTHROPIC_API_KEY` (never set there).
 
+## DB invariant + RLS deny-matrix suite (`tests/db-invariants/`)
+
+Vitest tests that assert what the database **refuses** at the SQL boundary —
+the "enforced at the DB, not by policy" proof (Strategy §7):
+
+- **`lead-events-immutability.test.ts`** — UPDATE/DELETE/TRUNCATE on
+  `lead_events` rejected for every role, including `service_role` (privilege
+  revoked, 42501) and the DB owner itself (trigger, 23514); the three
+  `prevent_mutation` triggers exist; clients can neither INSERT events nor call
+  `log_lead_event`.
+- **`ai-drafts-approval.test.ts`** — the CHECK makes `approved` without
+  `approved_by`+`approved_at` impossible even for `service_role`; a client's
+  bare status UPDATE dies on the column-scoped grant (only `edited_text` is
+  writable); `approve_draft()` writes the status flip and the `draft_approved`
+  event atomically. One `it.fails` tripwire documents a **known hole** in
+  `approve_draft()`'s guard (NULL `seller_user_id` fails open) — it goes red
+  when a migration fixes it, at which point flip it to a plain `it`.
+- **`rls-deny-matrix.test.ts`** — anon / dealer-A / dealer-B clients each prove
+  the others' enquiries, drafts, messages, events, aliases and metrics rows are
+  invisible/unwritable, across every RLS-bearing table.
+
+They are **env-gated** (same pattern as `scripts/metrics-views.integration.test.ts`):
+with no local stack they skip, so `ci.yml`'s gate is unaffected; `e2e.yml` runs
+them against its booted stack, and locally they run inside `npm test` whenever
+`.env` points at a running local stack. Direct-SQL cases (TRUNCATE, SET ROLE)
+use `pg` against the local `54322` port.
+
 ## What CI runs automatically
 
 `.github/workflows/ci.yml` defines one job, **`gate`**, on `ubuntu-latest` with

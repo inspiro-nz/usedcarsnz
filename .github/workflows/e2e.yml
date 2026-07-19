@@ -96,6 +96,14 @@ jobs:
         # the marketplace specs real listings so the detail test doesn't skip.
         run: npm run seed:demo
 
+      - name: DB invariants + RLS deny-matrix (SQL boundary)
+        # PROMPT-T2: proves what the database REFUSES — lead_events
+        # immutability for every role incl. the owner, the ai_drafts approval
+        # state machine, and the anon/dealer-A/dealer-B RLS deny-matrix.
+        # Same booted stack, no second supabase start. Env-gated: these same
+        # tests SKIP in ci.yml's stackless gate.
+        run: npx vitest run tests/db-invariants
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 

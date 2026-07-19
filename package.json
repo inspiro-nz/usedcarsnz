@@ -18,6 +18,7 @@
     "demo:reset": "tsx scripts/demo-reset.ts",
     "latency-check": "tsx scripts/latency-check.ts",
     "test": "vitest run",
+    "e2e:setup": "tsx scripts/ensure-e2e-user.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

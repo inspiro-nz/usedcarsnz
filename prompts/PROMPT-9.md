@@ -1,5 +1,8 @@
 # PROMPT 9 — Documentation Truth-Up, Architecture Record & 5/30/90 Roadmap
 
+> **✅ EXECUTED 19 July 2026** (PRs #34–#36, merged to `develop`). Kept as the
+> format reference for new work packages — see `prompts/README.md`.
+
 You are Claude Code working in `inspiro-nz/usedcarsnz`. This is a **single work package**: bring every document in the repo into agreement with the actual state of `develop`, remove what is stale, add the missing architecture record, and replace the build roadmap with a dated 5/30/90-day plan that carries explicit alive/dead checkpoints. Two CI-workflow changes (Tasks 3 and 3b) and two runbook lines are the only non-doc changes permitted.
 
 This prompt was produced from a sceptical external review (19 July 2026) that verified every finding against the repo. Do not re-litigate the findings, but **do re-verify each one exists before fixing it** (recon before action). If a finding is already fixed, say so in the report and move on.

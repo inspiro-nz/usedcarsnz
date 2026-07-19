@@ -62,20 +62,18 @@ vars are absent.
    E2E_TEST_PASSWORD=<a-strong-password>
    ```
 
-2. Create the matching user in the Supabase project the app points at
-   (`NEXT_PUBLIC_SUPABASE_URL`). Either:
+2. Create/repair the matching user with one command (idempotent, hard-guarded
+   to the **local** stack — it refuses any non-127.0.0.1 URL):
 
-   - **Dashboard:** Authentication → Users → *Add user* → tick *Auto Confirm User*
-     so the account is usable immediately, then set the same email/password.
-   - **Admin API (server, uses the secret key):**
+   ```bash
+   npm run e2e:setup
+   ```
 
-     ```bash
-     curl -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
-       -H "apikey: $SUPABASE_SECRET_KEY" \
-       -H "Authorization: Bearer $SUPABASE_SECRET_KEY" \
-       -H "Content-Type: application/json" \
-       -d '{"email":"e2e@example.com","password":"<a-strong-password>","email_confirm":true}'
-     ```
+   Run it again any time — after every `supabase db reset` in particular,
+   which wipes the user and otherwise makes the sign-in spec fail with
+   "Invalid login credentials" for an environmental reason, not a code one.
+   (`scripts/ensure-e2e-user.ts`; it creates the user auto-confirmed, or
+   re-syncs the password to the env value if the user already exists.)
 
    The user must be **confirmed** (`email_confirm: true` / Auto Confirm), or
    sign-in returns "Email not confirmed" and the happy-path test fails.
@@ -114,9 +112,9 @@ reference them in the build step, e.g.:
 
 ## Not covered (yet)
 
-- Browser E2E in CI. It needs a **test Supabase project** (URL + publishable key
-  as repo secrets, plus a seeded confirmed test user) so the sign-in spec can run
-  headlessly without touching production. Out of scope for now — this suite is a
-  local safety net.
+- Browser E2E in CI — **planned, designed, and prompt-ready**: see
+  `prompts/test-harness-design.md` and `prompts/PROMPT-T1.md`. (The old note
+  here said CI E2E needs a cloud test Supabase project; it doesn't — the
+  Supabase CLI boots the full stack inside the Actions runner with no secrets.)
 - Any coverage of the bounded AI layer (already has its own Vitest suite),
   registration/dealer flows, enquiry submission, and password reset.

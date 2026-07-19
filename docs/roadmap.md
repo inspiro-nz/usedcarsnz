@@ -1,59 +1,110 @@
-# UsedCarsNZ — build roadmap
+# UsedCarsNZ — Roadmap (5 / 30 / 90 days)
 
-**Last updated:** 2026-07-14 (end of Prompt 7 close-out, `feature/prompt7-closeout`).
+**Written:** 19 July 2026. **This file is the current plan of record.** Build
+history (Prompts 0–8, all complete) lives in Strategy v5.7 §15; architecture in
+`docs/architecture.md`; the stand-up procedure in `docs/infra/demo-standup.md`.
 
-The build ships in numbered "prompts" (work packages). This file is the current
-state of record: what is done, what is in flight, and what is deferred. It
-replaces the empty placeholder that used to sit here.
-
----
-
-## Done — merged to `develop` and working
-
-| Prompt | Scope | Evidence |
-|---|---|---|
-| 0 | Schema foundation — enums, identity, listings, leads, immutable `lead_events`, RLS | `supabase/migrations/20260621*` |
-| 1 | Founding-dealer landing wedge (FROZEN) | `app/page.tsx`, `app/api/lead/route.ts`, `lib/security.ts` |
-| 2 | Marketplace slice — `/cars` search, listing detail, dealer/admin, auth | `app/(marketplace)/*` |
-| 3 | Enquiry intake — `POST /api/enquiries`, templated (no-LLM) ack, `email_outbox` retry | `app/api/enquiries`, `lib/email/*` |
-| 4 | AI lanes — Lane 1 qualification chat + Lane 2 dealer draft, guard + red-team suite, human-approval gate | `lib/ai/*` |
-| 5 | Email-ingestion lead lane — inbound worker, alias→dealer, nullable listing_id, shared first-touch | `workers/email-inbound`, `/api/inbound/email` |
-| 6 | Conversion-metrics proof layer — views, dealer/public dashboards, "Sample data" honesty badge | `lib/metrics-views.ts`, `/dealer/metrics`, `/metrics` |
-| 7 | **Performance hardening & demo runbook (this close-out)** | see below |
-
-### Prompt 7 deliverables (this branch)
-- **A** `scripts/latency-check.ts` — deployed-demo latency gate with Cloudflare Access service-token headers, p50/p75/p95 vs budgets, non-zero on breach. `npm run latency-check`.
-- **B** Page-level ISR on the listing detail route (`revalidate = 300` + `generateStaticParams`) with on-demand `revalidatePath` on create / status-change / mark-sold. `/cars` stays `force-dynamic` (results depend on searchParams). Loading states are skeletons, not spinners.
-- **C** Client-side image compression (`lib/images/compress.ts`) — zero-dependency `createImageBitmap` + canvas, ≤1600px, WebP ~0.8, ≤200KB; fixed aspect-ratio containers = zero CLS.
-- **D** Cron wiring — standalone `workers/outbox-sweep` + `workers/raw-email-purge` POST authenticated app endpoints (the OpenNext app worker exports only `fetch`; it cannot take a cron trigger). Schedules in `docs/infra/cron-schedules.md`.
-- **E** `X-Robots-Tag: noindex` via `next.config.js` `headers()`, gated on `NEXT_PUBLIC_APP_ENV === "demo"`; prod response byte-for-byte unchanged.
-- **F** `/privacy` page (placeholder pending lawyer review) linked from the marketplace footer.
-- **G** `DEMO_RUNBOOK.md` — the rehearsal script for the dealer meeting.
+**State of play in one paragraph:** the product is built and green in CI —
+marketplace, both AI lanes with the DB-enforced approve→send gate, email
+ingestion, the immutable-log metrics dashboard, demo hardening, and three cron
+workers deployable by CI. Nothing that remains is application code. What
+remains is **configuration** (one founder afternoon: Supabase demo project,
+secrets, Cloudflare Access, one click of the Promote-demo action),
+**law** (the urgent post-CCCFA→FMA consult, the `/privacy` copy, the pilot
+agreement), and **decisions** (the marketplace-vs-tool-first fork, the pilot
+baseline design — both drafted as ⚠ FOUNDER DECISION blocks in Strategy v5.7).
 
 ---
 
-## Next — to go live (founder infra, not code)
+## Next 5 days (by Thu 24 Jul) — retire execution risk
 
-The code for a gated demo at `demo.usedcarsnz.co.nz` is complete. What remains is
-operational and needs Cloudflare/Supabase credentials. Tracked in
-`docs/LOOSE-ENDS.md` (PART B/C). Summary:
+1. **Safety first:** re-verify `.env.local` points at the local Docker stack,
+   never `geappcqiihbgihcsitkj` (last verified 2026-07-14; two minutes).
+2. **Stand up the demo** end-to-end from `docs/infra/demo-standup.md`
+   (rewritten 19 Jul — the single complete path): demo Supabase migrations +
+   seed → **all** secrets including `RESEND_API_KEY` and `CRON_SECRET` →
+   Zero Trust / Access + service token → GitHub repo secrets → **Actions →
+   Promote demo** → watch the dispatched deploy go green.
+3. **Rehearse:** one full `DEMO_RUNBOOK.md` dry-run **including receiving the
+   ack email on a real phone**; cron smoke tests return 2xx;
+   `npm run latency-check` green; capture the screen-recording fallback.
+4. **Book the lawyer** (the calendar item this week; the meeting can be next):
+   FTA/CGA AI scope, finance-referral bright line post-CCCFA→FMA, `/privacy`
+   copy, pilot agreement. No referral revenue before this consult — hard rule.
+5. **Book the five dealer visits** from the top-25 call-first cohort.
 
-1. Demo Supabase project — push migrations, `npm run seed:demo`.
-2. Worker secrets via `wrangler secret put` (app `--env demo`, keepalive, email-inbound).
-3. GitHub Actions secrets for `deploy-demo.yml`.
-4. Cloudflare Zero Trust / Access — org, One-time-PIN IdP, self-hosted app policy, `demo-machine` service token.
-5. Create the `demo` branch → trigger `deploy-demo.yml`; verify the Access wall.
-6. Run `latency-check` against the deployed demo (founder step — needs the service token).
+## Next 30 days (by Tue 18 Aug) — buy the evidence
+
+1. **Mystery-shopper baseline:** enquire on ~10 Christchurch Trade Me /
+   AutoTrader listings; record median first-response time. This first-party
+   number replaces the US studies in every conversation (zero attribution
+   risk — never say "Harvard").
+2. **Hold the five dealer conversations**, demo in hand: listen first, demo
+   second, and ask the price-anchored forcing question verbatim before leaving
+   ("…for something like $150 a month?"). Record answers in the
+   `dealer-validation-kit.md` capture grid.
+3. **Resolve the marketplace-vs-tool-first fork** within one week of the fifth
+   conversation, per the decision rule in Strategy v5.7 (Exec Summary — covers
+   4–5 / 2–3 / 0–1 yes outcomes). Write it down, dated. The strategy rewrite
+   around the winner is v5.8. The fork does not roll to a sixth version.
+4. **Legal consult held**; pilot agreement drafted (data-processing +
+   AI-labelled-response authorisation + 30-day retention + the chosen baseline
+   design); `/privacy` copy to the lawyer.
+5. **Choose the pilot baseline design** (§5 ⚠ FOUNDER DECISION: mystery-shop
+   per dealer / BCC quiet period / labelled self-report) — before any pilot
+   dealer goes live.
+6. **Prod deploy only if the fork outcome needs it** (fast-forward `main` from
+   `develop`, set prod secrets, `npm run deploy`). **Ad budget stays held**
+   until the fork is resolved — the copy differs materially by outcome.
+
+## Next 90 days (by Fri 17 Oct) — run the hard gate
+
+1. **Sign 5–10 pilot dealers** (top-10 cohort) on the lawyer-reviewed pilot
+   agreement.
+2. **Wire Email Routing for pilots:** verify the founder forward Gmail as a
+   Cloudflare destination (confirm-link email), run the DNS collision check
+   against Resend, catch-all → email-inbound worker. Get one real **redacted**
+   Trade Me lead email into `workers/email-inbound/fixtures`.
+3. **Capture each dealer's baseline** per the chosen design **before**
+   switching the AI on for them.
+4. **Two-month measurement window** per dealer; every pilot dealer watches
+   their own live dashboard.
+5. **Day-90 verdict** — the §5 hard gate: measurable enquiry-to-appointment
+   lift vs baseline, or not. **Pass** → productise the proof, approach
+   Motorcentral with numbers (a conversation with proof beats one with a
+   promise), introduce the flat plan on its two preconditions. **Fail** →
+   Strategy §12.2 verbatim: pivot or stop. Do not keep building on faith.
 
 ---
 
-## Later — pilot and beyond (not blocking the demo)
+## Alive/dead gates — how we know this isn't a dead idea
 
-Ordered by urgency; detail in `docs/LOOSE-ENDS.md` PART D.
+Each gate has a date, what "alive" looks like, and what failure honestly means.
+No gate can be passed by enthusiasm; each requires an artifact or a number.
 
-1. **Legal consult (urgent)** — CCCFA→FMA transfer completed; privacy page is placeholder; buyer PII flows through the email lane.
-2. **Production deployment** — the marketplace slice is on `main` but not live (no Supabase secrets on the prod worker).
-3. **Marketplace-primary vs tool-first** positioning — unresolved; the first dealer conversations decide it.
-4. **Seller-side vs dealer-side ad test** — hold ad budget until resolved.
-5. **Motorcentral integration** — sequenced post-pilot.
-6. **Real Trade Me lead-email fixture** — redacted sample from the first pilot dealer for `workers/email-inbound/fixtures`.
+| Date | Gate | Alive looks like | Dead / act looks like |
+|---|---|---|---|
+| **24 Jul** | Demo live & rehearsed | Access-gated demo up; ack email received on a real phone; latency + cron smoke green; dry-run done | Config still failing → fix before any dealer sees it. This gate carries **no strategic signal** either way — it only retires execution risk |
+| **18 Aug** | Demand signal | ≥4 of 5 conversations held; forcing question answered ×5; fork resolved and written down; ≥1 dealer volunteers for the pilot unprompted | **0 dealers interested at any price** → the offer, not the build, is wrong. Stop; re-examine the wedge before any pilot or ad spend. 2–3 lukewarm → proceed, but the founder decision on the fork must still be made and dated |
+| **~17 Oct** | The wedge (hard gate, §5) | Measured enquiry-to-appointment lift vs the chosen baseline in ≥half the pilot cohort, from the immutable log | **No measurable lift in two months** → the wedge has failed. §12.2 verbatim: pivot or stop. The published-proof strategy has no honest fallback claim without this number |
+
+Ongoing tripwires (checked monthly, from Strategy §12.2): NZME announces a
+self-built automotive venture → accelerate Motorcentral + pilot; Trade Me ships
+sub-minute AI response **and** publishes sale-rate metrics → the feature moat is
+gone, pivot to the compliance/human-approval angle or seek acquisition;
+Motorcentral refuses integration → reassess whether CSV import can sustain
+adoption at all.
+
+---
+
+## Standing rules (do not schedule these away)
+
+- **No referral money changes hands before the legal consult** — the
+  CCCFA→FMA deferral anchor is gone (Strategy §7.3); the finance line is the
+  primary revenue plan and it is blocked until a lawyer clears the
+  advice-vs-referral bright line, FSPR registration and DRS membership.
+- **`.env.local` is re-verified before every `supabase db reset`** (Strategy
+  §10.1). One reset against a prod-pointing config destroys production.
+- **Seeded numbers always carry the "Sample data" badge and the spoken
+  disclaimer** (`DEMO_RUNBOOK.md`) — presenting fabricated metrics as measured
+  is direct Fair Trading Act exposure.

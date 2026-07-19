@@ -1,0 +1,53 @@
+name: Promote demo
+
+# One-click demo branch management. Force-pushes a chosen ref (default:
+# develop) to the long-lived `demo` branch — creating it on first run,
+# re-pointing it on every later run — then dispatches the "Deploy demo"
+# workflow.
+#
+# WHY THE EXPLICIT DISPATCH EXISTS — DO NOT REMOVE IT: pushes made with the
+# default GITHUB_TOKEN do NOT trigger `push`-event workflows (GitHub's
+# recursive-trigger protection), so the branch push below will never fire
+# deploy-demo.yml on its own. workflow_dispatch events are exempt from that
+# rule, and deploy-demo.yml declares a workflow_dispatch trigger — so we
+# dispatch it by name after the push. Removing the dispatch step produces a
+# branch that silently never deploys.
+#
+# SAFETY: this workflow only moves a branch pointer and dispatches the demo
+# deploy. It can never touch prod — the deploy it triggers runs
+# `wrangler deploy --env demo` only, and production has no CI deploy at all.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or branch to promote to the demo branch"
+        required: true
+        default: develop
+
+concurrency:
+  group: promote-demo
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the demo branch
+      actions: write # dispatch deploy-demo.yml
+    steps:
+      - name: Checkout the ref to promote
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Force-push to the demo branch
+        run: git push origin HEAD:refs/heads/demo --force
+
+      - name: Dispatch the demo deploy
+        # See the header comment: the push above cannot trigger deploy-demo.yml
+        # because it was made with GITHUB_TOKEN. workflow_dispatch is exempt.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-demo.yml --ref demo --repo "$GITHUB_REPOSITORY"

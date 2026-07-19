@@ -1,5 +1,10 @@
 # Marketplace Integration (WP-2/3 → live site)
 
+> **Historical record (June 2026).** This documents the original WP-2/3
+> marketplace merge. Statements about branch state (e.g. "byte-identical to
+> `main`") were true at merge time and are not maintained — for current
+> architecture see `docs/architecture.md`.
+
 **Branch:** `feature/marketplace-integration` · **Base:** `main` (the live Founding Dealer site)
 
 This merge brings the WP-2/3 marketplace slice into the live codebase. The

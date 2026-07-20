@@ -34,13 +34,16 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
-  // Boots the app and waits for it. Locally: `next dev`, reusing an already-
-  // running server. In CI (.github/workflows/e2e.yml): the PRODUCTION server —
-  // the workflow runs `next build` first, then `npm run start` here. CI cannot
-  // use `next dev` because initOpenNextCloudflareForDev() (next.config.js)
-  // spawns a wrangler proxy that needs Cloudflare auth the runner doesn't have.
+  // Boots `next dev` and waits for it; locally an already-running server is
+  // reused. CI (.github/workflows/e2e.yml) uses the SAME dev server: prod-mode
+  // (`next build` + `next start`) was tried first (T1) and caught a real bug —
+  // the ISR listing-detail page 500s under a prod server because the
+  // marketplace layout's header reads auth cookies ("Page changed from static
+  // to dynamic at runtime") — so CI stays on dev-mode until that's fixed.
+  // next dev's wrangler remote-proxy failure on a credential-less runner is a
+  // logged, non-fatal rejection (only the AI binding dies, which no spec uses).
   webServer: {
-    command: process.env.CI ? "npm run start" : "npm run dev",
+    command: "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -66,12 +66,18 @@ Design decisions the packages must respect:
 - **Keep `ci.yml`'s gate job untouched** — it is fast and battle-tested; the
   e2e job is additive.
 - Dev-server (`next dev`) vs production server (`next build && next start`)
-  for the Playwright `webServer` in CI: **T1 decided prod-mode**, and it is
-  not merely preferable but forced — `next dev` runs
-  `initOpenNextCloudflareForDev()` (next.config.js), which spawns a wrangler
-  proxy for the remote AI binding and needs Cloudflare auth the runner
-  doesn't have. `playwright.config.ts` switches its `webServer` command on
-  `process.env.CI`.
+  for the Playwright `webServer` in CI: **T1 decided dev-mode** — but only
+  after prod-mode earned its keep by catching a real pre-existing bug on its
+  first CI run: the ISR listing-detail page 500s under a prod server
+  ("Page changed from static to dynamic at runtime, reason: cookies")
+  because the marketplace layout's `MarketplaceHeader` calls `getViewer()`
+  (auth cookies) on every marketplace route — `next dev` semantics always
+  masked this, and it likely affects the OpenNext demo deployment too
+  (FOUNDER FINDING, needs its own fix PR). Until fixed, prod-mode cannot go
+  green, so CI uses `next dev` (verified to boot on a credential-less
+  runner: the wrangler remote-proxy failure is a logged, non-fatal
+  rejection; only the AI binding dies, which no spec uses). After the ISR
+  fix, flip `playwright.config.ts`'s `webServer.command` to prod under CI.
 
 ## Sequencing
 

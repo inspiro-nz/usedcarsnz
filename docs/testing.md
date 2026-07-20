@@ -99,13 +99,16 @@ inside the Actions runner:
 3. `npm run e2e:setup` seeds the sign-in user from throwaway
    `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` set as plain workflow env; then
    `npm run seed:demo` gives the marketplace specs real listings.
-4. `npm run build`, then Playwright boots the **production** server
-   (`npm run start`) as its `webServer` — CI can't use `next dev` because the
-   OpenNext dev shim needs Cloudflare auth (see `playwright.config.ts`).
+4. Playwright boots `next dev` as its `webServer`, same as locally. (Prod-mode
+   `next start` was tried and caught a real bug — the ISR listing-detail page
+   500s because the marketplace header reads auth cookies; once that's fixed,
+   CI should flip to the production server. The OpenNext dev shim's wrangler
+   remote-proxy failure on the credential-less runner is logged but non-fatal;
+   only the AI binding is dead, and no spec uses it.)
 5. On failure the `playwright-report/` HTML report is uploaded as an artifact.
 
-No live AI provider is reachable from the job: the `workers-ai` adapter needs
-the Cloudflare AI binding (absent under `next start`) and the `anthropic`
+No live AI provider is reachable from the job: the `workers-ai` adapter's
+binding proxy can't start without Cloudflare auth, and the `anthropic`
 adapter needs `ANTHROPIC_API_KEY` (never set there).
 
 ## What CI runs automatically

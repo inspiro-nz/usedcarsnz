@@ -61,7 +61,9 @@ npm run demo:reset
 ```
 
 - [ ] Pre-warm the demo URLs on both devices (first hit pays the cold/ISR cost):
-  open `/cars`, one listing, and `/dealer` so they are cached.
+  open `/cars`, one listing, and `/dealer` so they are cached. Note: signing in
+  now lands a dealer straight on `/dealer` (the dealer home — "Leads needing
+  action" first), a buyer on `/account`; nobody is dropped on the marketing page.
 - [ ] On the **laptop**: open the dealer **lead inbox** (`/dealer/leads`).
 - [ ] On the **phone**: open the **listing** you'll enquire on.
 - [ ] **Dry-run one enquiry end to end** yourself (phone → inbox → approve),
@@ -100,7 +102,8 @@ Say the lines; do the actions. Keep the laptop facing the dealer.
 6. Open the lead **timeline**. Point at the first-response time and the event log.
    **"This is the immutable log — first-response time, every step, tamper-proof.
    This is the number we publish."**
-7. Open the **dashboard** (`/dealer`). Point at the median first response.
+7. Open the **dashboard** (`/dealer` — the dealer home, where sign-in lands).
+   Point at **Leads needing action** at the top, then the median first response.
    **Say the sample-data line out loud, verbatim:**
    > *"These are sample numbers showing what your dashboard will look like — the
    > metric we publish will only ever be measured data."*

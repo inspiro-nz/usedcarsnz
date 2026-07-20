@@ -158,13 +158,26 @@ export async function POST(request: NextRequest) {
   // identical to the inbound-email lane (lib/enquiries/first-touch.ts). Awaited
   // so the ack send/queue completes before we respond; qualification is
   // scheduled via ctx.waitUntil inside it.
-  const { ctx } = await getCloudflareContext({ async: true });
+  //
+  // getCloudflareContext only exists under the OpenNext dev proxy or a real
+  // Cloudflare deploy. In plain Node (CI E2E, `next start` off-Cloudflare, a
+  // dev machine without wrangler auth) it THROWS — which used to 500 this
+  // route AFTER the enquiry row was committed: buyer shown an error, no ack
+  // pipeline, lead silently created. Degrade to fire-and-forget instead; the
+  // enquiry intake must never depend on the Cloudflare runtime being present.
+  let waitUntil: (p: Promise<unknown>) => void = (p) => void p.catch(() => {});
+  try {
+    const { ctx } = await getCloudflareContext({ async: true });
+    waitUntil = (p) => ctx.waitUntil(p);
+  } catch {
+    console.warn("[enquiries] Cloudflare context unavailable — scheduling first touch without waitUntil.");
+  }
   await runFirstTouch({
     enquiry: { id: enquiryId, created_at: createdAt },
     buyer: { name: data.name, email: data.email },
     dealer: { name: dealerName, email: dealerEmail, logoUrl: dealerLogoUrl },
     channel: "email",
-    waitUntil: (p) => ctx.waitUntil(p),
+    waitUntil,
   });
 
   return NextResponse.json({

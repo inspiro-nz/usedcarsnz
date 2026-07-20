@@ -46,6 +46,10 @@ jobs:
       # (scripts/ensure-e2e-user.ts). Plain env on purpose — see header.
       E2E_TEST_EMAIL: e2e-ci@example.com
       E2E_TEST_PASSWORD: e2e-ci-throwaway-Passw0rd
+      # Money-shot dealer fixture (e2e/money-shot.spec.ts): e2e:setup
+      # provisions this user as OWNER of the self-contained E2E dealership.
+      E2E_DEALER_EMAIL: e2e-ci-dealer@example.com
+      E2E_DEALER_PASSWORD: e2e-ci-dealer-throwaway-Passw0rd
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,13 +100,13 @@ jobs:
         # the marketplace specs real listings so the detail test doesn't skip.
         run: npm run seed:demo
 
-      - name: DB invariants + RLS deny-matrix (SQL boundary)
-        # PROMPT-T2: proves what the database REFUSES — lead_events
+      - name: DB invariants, RLS deny-matrix, demo:reset idempotency
+        # PROMPT-T2 + T3: proves what the database REFUSES — lead_events
         # immutability for every role incl. the owner, the ai_drafts approval
-        # state machine, and the anon/dealer-A/dealer-B RLS deny-matrix.
-        # Same booted stack, no second supabase start. Env-gated: these same
-        # tests SKIP in ci.yml's stackless gate.
-        run: npx vitest run tests/db-invariants
+        # state machine, the anon/dealer-A/dealer-B RLS deny-matrix — plus the
+        # demo:reset double-run safety. Same booted stack, no second supabase
+        # start. Env-gated: these same tests SKIP in ci.yml's stackless gate.
+        run: npx vitest run tests
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

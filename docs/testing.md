@@ -47,6 +47,22 @@ npx playwright install chromium
   page renders). It also guards the recent regression by asserting the
   `signInWithPassword is not a function` error never appears, and checks the
   negative path (bad credentials show an error banner, not a crash).
+- **`e2e/money-shot.spec.ts`** — the demo choreography (DEMO_RUNBOOK §3) as one
+  journey in two browser contexts: anonymous buyer enquires on the E2E fixture
+  listing (AI disclosure visible, confirmation shown) → lead + `enquiry_received`
+  in the DB, ack pipeline engaged (`ack_sent` event, or the parked `email_outbox`
+  row when no email provider is configured) → dealer signs in, sees the lead in
+  the inbox, opens it ("draft, not sent" badge), edits one line of the AI draft,
+  clicks **Approve & send** → draft `sent` with approver + `draft_approved` /
+  `reply_sent` on the timeline, in order, with the ack pre-dating the approval.
+  The draft itself is inserted by the spec via the service role — a
+  deterministic stand-in for the AI lane, so CI never touches a live model.
+  **Needs `E2E_DEALER_EMAIL` / `E2E_DEALER_PASSWORD`** (skips without them):
+  `npm run e2e:setup` then provisions the dealer user + its own dealership +
+  one active Honda Jazz fixture listing, idempotently, local-only.
+  ⚠️ Locally, if `.env.local` sets `RESEND_API_KEY`, the ack/reply sends are
+  real API calls to a `@example.com` address (they bounce harmlessly); unset it
+  to keep runs fully offline.
 
 ### Test user for the sign-in spec
 
@@ -168,7 +184,5 @@ reference them in the build step, e.g.:
 
 ## Not covered (yet)
 
-- DB-boundary invariant/RLS tests and the money-shot browser journey — designed
-  and prompt-ready: `prompts/PROMPT-T2.md` and `prompts/PROMPT-T3.md`.
 - Any coverage of the bounded AI layer (already has its own Vitest suite),
   registration/dealer flows, enquiry submission, and password reset.

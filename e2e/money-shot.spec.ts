@@ -149,7 +149,9 @@ test.describe("money shot: enquiry → ack → inbox → approve → sent", () =
     await dp.getByLabel("Email", { exact: true }).fill(DEALER_EMAIL!);
     await dp.getByLabel("Password", { exact: true }).fill(DEALER_PASSWORD!);
     await dp.getByRole("button", { name: "Sign in" }).click();
-    await dp.waitForURL((u) => u.pathname === "/", { timeout: 30_000 });
+    // Post-PROMPT-10: sign-in is role-aware — a dealer lands on the dealer home
+    // (/dealer), not the marketing page. The inbox is one hop from there.
+    await dp.waitForURL((u) => u.pathname === "/dealer", { timeout: 30_000 });
 
     await dp.goto("/dealer/leads");
     const row = dp.getByRole("row").filter({ hasText: buyerName });

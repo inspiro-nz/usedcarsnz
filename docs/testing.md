@@ -43,10 +43,14 @@ npx playwright install chromium
   cards or the empty state; clicking a listing opens its detail page. The detail
   test **skips** cleanly when the database has no listings.
 - **`e2e/signin.spec.ts`** — the priority. Fills email + password on `/sign-in`,
-  submits, and asserts a *real* authenticated outcome (the auth-gated `/account`
-  page renders). It also guards the recent regression by asserting the
-  `signInWithPassword is not a function` error never appears, and checks the
-  negative path (bad credentials show an error banner, not a crash).
+  submits, and asserts a *real* authenticated outcome that is now **role-aware**
+  (PROMPT-10): a buyer lands on their account home (`/account`, "Your enquiries"
+  section visible) and a dealer lands on the dealer home (`/dealer`, "Leads
+  needing action"), never on the marketing page `/`. The dealer case needs
+  `E2E_DEALER_EMAIL` / `E2E_DEALER_PASSWORD` and skips without them. It also
+  guards the recent regression by asserting the `signInWithPassword is not a
+  function` error never appears, and checks the negative path (bad credentials
+  show an error banner, not a crash).
 - **`e2e/money-shot.spec.ts`** — the demo choreography (DEMO_RUNBOOK §3) as one
   journey in two browser contexts: anonymous buyer enquires on the E2E fixture
   listing (AI disclosure visible, confirmation shown) → lead + `enquiry_received`

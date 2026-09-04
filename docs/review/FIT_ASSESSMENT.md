@@ -1,7 +1,7 @@
 # UsedCarsNZ — Fit Assessment
 
-**Date:** 2026-08-16
-**Depends on:** `docs/review/CURRENT_STATE.md` (all file-path evidence lives there; this document adds judgement, not new facts).
+**Date:** 2026-09-04 (revision 2)
+**Depends on:** `docs/review/CURRENT_STATE.md` — all file-path evidence lives there. This document adds judgement, not new facts.
 
 ## 1. Keep / Adapt / Build / Kill
 
@@ -9,91 +9,105 @@
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Next.js 16 / OpenNext / Cloudflare Workers stack | **Keep** | Fixed by constraint; correctly wired (SSR-heavy but ISR proven on the one page that needs it); no reason to touch. |
-| Core identity/listings/RLS schema (`users`, `dealers`, `listings`, `listing_photos`, `saved_listings`) | **Keep** | Sound RLS design, every table covered, no disabled-RLS findings. |
-| `lead_events` append-only audit log + `metrics_*` views | **Keep** | This is the single most strategically valuable thing in the repo — it's the literal implementation of "attribution machinery to defend renewals," built before the strategy doc that names it. Don't touch the shape, only extend it. |
-| `approve_draft()` fails-open authorisation hole | **Adapt — urgently** | One-line SQL fix (`coalesce(seller_user_id = auth.uid(), false)`), already diagnosed and tracked as a founder-decision tripwire. This is not a redesign question, it's a bug with a known patch sitting unapplied. Fix before any real dealer's send-approval flow is trusted in production. |
-| Manual single-row listing creation form | **Adapt** | Keep as the fallback/admin path for the long tail of dealers without exportable feeds — don't kill it, but stop treating it as the primary supply mechanism. |
+| Next.js 16 / OpenNext / Cloudflare Workers | **Keep** | Fixed by constraint and correctly wired; the awkward bits (deprecated `middleware.ts`, Node-runtime `proxy.ts` incompatibility) are already understood and documented in-repo. |
+| `supabasePublic()` / `supabaseServer()` / `supabaseService()` client split | **Keep** | Quietly one of the best decisions in the codebase — a cookie-less client purpose-built so public pages stay cacheable. The problem is that it is under-used, not that it is wrong. |
+| Core identity/listings/RLS schema | **Keep** | Every table RLS-enabled, no disabled-RLS findings, sensible policy design. |
+| `lead_events` append-only log + `metrics_*` views | **Keep** | The single most strategically valuable asset here. It is the literal implementation of "attribution machinery that defends renewals", built before the strategy document that names it, with DB-level immutability and a deliberate invoker/definer split. Extend it; do not reshape it. |
+| `approve_draft()` inert authorisation gate | **Adapt — fix now** | One-line fix, already diagnosed, sitting unapplied. The human-approval boundary is the central trust claim of the AI-reply product; it is currently unenforced at the exact point it was written to be enforced. |
+| `listing_photos` (dead schema, zero app references) | **Adapt** | Don't drop it — it is the right shape and photos will arrive with the feed. But recognise that until it is wired, vehicle structured data has no `image`, which materially weakens the entire demand pillar. |
+| Manual single-row listing form | **Keep as fallback** | Correct long-tail path for dealers without exportable feeds. Just stop treating it as the primary supply mechanism. |
 
-### Listing/marketplace UI
+### Listing / marketplace UI
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Listing browse/search/filter (`app/(marketplace)/cars/page.tsx`) | **Adapt** | Not off-strategy to *own*, but off-strategy to keep *investing* in. It already exists and is cheap to maintain — repurpose it as the human-readable half of the SEO surface rather than building filter richness (saved search, comparison, etc.) that would only matter if UsedCarsNZ were competing with Trade Me on browse. |
-| Listing detail page + ISR (`.../[id]/page.tsx`) | **Adapt** | This *is* the demand pillar's landing page — keep and prioritise, but the production-build cookie/ISR bug must be fixed and proven under `next start`, not just `next dev`, before it's load-bearing for organic traffic. |
-| Dealer storefront page (`app/(marketplace)/dealers/[id]/page.tsx`, currently uncommitted) | **Keep** | A dealer profile page is exactly the kind of durable, locally-relevant AEO/SEO surface the strategy calls for (dealer name + suburb + stock is genuinely answerable content). Finish and commit it; add `LocalBusiness`/`AutoDealer` JSON-LD while you're in there. |
-| `listing-card.tsx` (no photo pipeline yet) | **Adapt** | Photos matter more for conversion and for AI-crawler image indexing than for browse aesthetics — prioritise a basic photo pipeline once feed ingestion exists, since photos will arrive with the feed rather than being hand-uploaded per listing. |
+| Browse/search/filter (`cars/page.tsx`) | **Adapt** | Fine to own, wrong to keep investing in. Repurpose as the human-readable half of the SEO surface; add no further filter richness. |
+| Listing detail + ISR | **Adapt — fix the production bug** | This *is* the demand pillar's landing page. The `MarketplaceHeader` cookie read in the shared layout defeats ISR under a production build, and CI masks it by testing against `next dev`. Right now the project's only caching does not work where it counts. |
+| Dealer storefront (`dealers/[id]`, in flight) | **Keep — and unblock it** | Strategically the best new page in the repo: dealer name, suburb, live stock, verification badge is genuinely answerable content for both search and AI assistants. But as written it ships crawler-blocked by the `Disallow: /dealer` prefix rule, absent from the sitemap, uncached, and without `AutoDealer` markup. Four cheap fixes stand between it and being the strongest AEO asset in the project. |
+| `listing-card.tsx` (no photos) | **Adapt** | Deferred correctly, but sequence it with feed ingestion — photos arrive with the feed, not by hand. |
+| Compliance strip (in-trade, CGA/FTA, CIN) | **Keep** | Real NZ motor-trade obligation handled properly; also a genuine trust differentiator worth surfacing in structured data later. |
 
 ### Lead engine
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Enquiry form + Turnstile + honeypot | **Keep** | Solid, tested, fails closed correctly. |
-| Email-lead ingestion from forwarded Trade Me emails (`workers/email-inbound/`, `lib/inbound/*`) | **Keep** | This is a genuinely clever bridge: it captures demand-side leads today without waiting for the supply-side feed pipeline to exist, and it's the best-tested code in the repo. Keep investing here; it de-risks the gap while feed ingestion is built. |
-| Dealer leads inbox, AI-drafted reply, human-approval gate (`lib/leads.ts`, `dealer/leads/*`) | **Keep** | Directly implements the "AI drafts, human sends" trust model the strategy needs for dealer buy-in. Well tested end-to-end. |
-| OTP-verified enquiry / proxy phone numbers | **Build — but defer** | Named in the strategy but absent in code, and on inspection may not be M0–M3-critical: the append-only `lead_events` log already gives dealers a credible evidence trail for renewal conversations without phone-call attribution. Build this only once a design-partner dealer specifically asks "how do I know this lead came from you," not before. |
-| AI qualification chat (`lib/ai/trigger.ts`) | **Keep** | Working, guarded against prompt injection, tested. |
+| Enquiry form + Turnstile + honeypot + rate limit | **Keep** | Fails closed in production; tested. |
+| Email-lead ingestion from forwarded Trade Me notifications | **Keep** | The cleverest thing in the repo: it captures real demand-side leads *today* without waiting on the supply pipeline, and it is the best-tested code here. It de-risks the M1 gap. |
+| Dealer leads inbox + AI draft + human-approval gate | **Keep** | Implements the "AI drafts, human sends" trust model dealers need. Tested end-to-end. |
+| AI qualification chat + injection guard | **Keep** | Working, guarded, tested. |
+| OTP-verified enquiry / proxy phone numbers | **Build — but defer** | Named in the brief, absent in code, and on inspection not M0–M3-critical: the immutable `lead_events` trail already gives dealers a defensible evidence story. Build when a design-partner dealer actually challenges attribution, not before. Proxy numbers in particular carry real recurring cost and telephony integration for a benefit no one has yet asked for. |
 
 ### Dealer tooling
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Dealer conversion-metrics dashboard + CSV export | **Keep** | This is the renewal-defence artefact in dealer-facing form; already production-quality. |
-| Public proof-metrics page (min-N gated) | **Keep** | Directly supports the "flat monthly, not pay-per-lead" pitch — a credible public number beats a sales claim. |
-| Admin dealer-approval queue | **Keep** | Necessary, small, works. |
-| AI-written listing generation | **Build** | Named as the first SaaS product in the revenue sequence; currently zero code. This is a genuine gap, not a mislabelled feature — `lib/ai/generate-draft.ts` drafts buyer-enquiry replies, not listing copy. |
-| Price-positioning reports | **Build** | Zero code; needs comparable-listing data (itself gated on feed ingestion existing at scale). |
+| Conversion-metrics dashboard + CSV export | **Keep** | The renewal-defence artefact in dealer-facing form; already production-quality. |
+| Public min-N-gated proof metric | **Keep** | A published number that refuses to display until it is statistically honest is worth more than any sales claim. Rare discipline; keep it. |
+| Admin dealer-approval queue | **Keep** | Small, necessary, works. |
+| AI-written listing copy | **Build** | The named first SaaS product with zero code. Note this is *not* what `lib/ai/generate-draft.ts` does — that drafts enquiry replies. Genuine gap. |
+| Price-positioning reports | **Build (later)** | Needs comparable-listing density, which is gated on feed ingestion at scale. Sequencing it before M1 would produce a report grounded in a handful of hand-typed cars. |
 
 ### SEO/AEO
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| `robots.ts` | **Adapt** | Five-minute fix: add explicit `GPTBot`/`ClaudeBot`/`PerplexityBot`/`CCBot` allow rules. The wildcard probably already lets them through, but "probably" isn't a policy — make it explicit and testable. |
-| `sitemap.ts` | **Keep** | Dynamic, DB-driven, safe fallback on error — sound foundation, just needs more URLs once programmatic pages exist. |
-| JSON-LD (`Car`/`Offer` on listing detail only) | **Adapt** | Functional but narrow — extend to dealer pages (`AutoDealer`), and make a conscious call on `Car` vs the strategy-named `Vehicle` type (both are schema.org-valid; `Vehicle` is the more general/AEO-common type — worth normalising for consistency with the strategy doc even if `Car` also validates). |
-| Programmatic SEO page generation | **Build** | Entirely absent. This is the highest-leverage gap relative to effort — the data (listings) and the rendering pattern (ISR) already exist; what's missing is the template layer (make/model/location pages) and the AEO content grounding rules. |
+| `robots.ts` | **Adapt — highest value-per-hour fix in the review** | Add explicit GPTBot/ClaudeBot/PerplexityBot/CCBot rules, and fix `Disallow: /dealer` so it stops blocking `/dealers/*`. Under an hour of work standing between the dealer storefronts and being indexable at all. |
+| `sitemap.ts` | **Adapt** | Sound foundation. Switch to `supabasePublic()` so it can be cached rather than regenerated per request, add dealer storefront URLs, and replace the bare `limit(5000)` with pagination before it silently truncates. |
+| JSON-LD (`Car`/`Offer`, listing only) | **Adapt** | Extend to dealer pages (`AutoDealer`), make a deliberate `Car` vs `Vehicle` call, and add `image` once photos exist — the missing image is the difference between markup that validates and markup that earns rich results. |
+| Programmatic SEO page generation | **Build** | The highest-leverage gap relative to effort: the data, the routing pattern, and the caching primitive all exist. What is missing is the template layer and the grounding rules that keep it out of thin-AI-filler territory. |
 
 ### Monetisation
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Billing / Stripe / subscriptions | **Build** | Zero code, but correctly sequenced last in the strategy — not a gap that should be closed before there's a paying dealer to bill. |
-| Lead-cap enforcement | **Build** | Same — needed only once flat-monthly-with-cap is an actual commercial term with a real dealer. |
-| F&I referral tracking | **Build (later)** | Explicitly the third revenue stream in sequence; no urgency. |
+| Billing / Stripe | **Build (later)** | Correctly sequenced last. Do not build a self-serve billing platform for one or two dealers — a tracked cap and a manual invoice proves the model. |
+| Lead-cap enforcement | **Build (later)** | Needed only once flat-monthly-with-cap is a real commercial term with a real dealer. |
+| F&I referral tracking | **Build (later)** | Third revenue stream; a simple `referrals` table will do when it arrives. |
 
 ### Everything else
 
 | Item | Verdict | Rationale |
 |---|---|---|
-| Marketing/pilot-acquisition landing page + `PilotForm` | **Keep** | This is the M0 dealer-acquisition tool; on-strategy, already built. |
-| Auth, account management, role-aware home | **Keep** | Necessary plumbing, not a strategic question either way. |
-| Cron Workers (`keepalive`, `outbox-sweep`, `raw-email-purge`) | **Keep** | Small, necessary, correctly isolated as standalone Workers. |
-| Demo environment (separate Cloudflare env, its own keepalive cron just to stop a free-tier Supabase project pausing) | **Adapt — reconsider proportionality** | This is real, working infrastructure, but it's a second environment with its own deploy pipeline, cron, and runbook, maintained solo, for a product with no paying customers yet. Worth an explicit founder call on whether it earns its maintenance cost once real dealer pilots replace the need for a synthetic demo, or whether it should be retired at that point (see kill list in the roadmap). |
-| E2E + DB-invariant test harness | **Keep** | Genuinely protects the one flow (enquiry → ack → draft → approve → send) that must never silently break; proportionate for a solo dev. |
-| Root `.patch`/`pre-recovery-*` files | **Kill** | Debris from a past recovery incident; delete. |
-| `docs/AUDIT-LEAD-ENGINE.md` | **Kill (archive)** | Superseded by current migration state; move to `docs/archive/` to stop it misleading future readers (including future AI-assisted sessions). |
+| Marketing/pilot landing page + `PilotForm` | **Keep** | This is the M0 dealer-acquisition tool, already built. |
+| Auth / account / role-aware home | **Keep** | Necessary plumbing. |
+| Cron Workers (`outbox-sweep`, `raw-email-purge`) | **Keep** | Small, necessary, correctly isolated. |
+| Demo environment + `keepalive` cron | **Adapt — set a retirement trigger** | Working infrastructure with genuine pre-sales value, but it is a second environment with its own pipeline, cron, runbook, and a Worker whose entire purpose is stopping a free-tier database from pausing. That is real maintenance load for a solo developer with irregular hours. Keep it through M0–M3; set an explicit trigger to re-evaluate once real dealers are live. |
+| E2E + DB-invariant harness | **Keep** | Proportionate, and it protects the one flow that must never silently break. Its one flaw — falling back to `next dev` and thereby masking the ISR bug — should be closed as part of the ISR fix, not by weakening the harness. |
+| Root `.patch` / `pre-recovery-*` files | **Kill** | Recovery debris. Delete. |
+| `docs/AUDIT-LEAD-ENGINE.md` | **Kill (archive)** | Superseded by current migration state; actively misleading to future readers and to future agentic sessions that treat repo docs as ground truth. Move to `docs/archive/`. |
 
 ## 2. Gap map
 
-Pillars with **no code at all** against them:
+**Pillars with no code at all:**
 
-- **Feed ingestion (supply)** — the foundational pillar of the whole business model. Nothing exists beyond a promise in UI copy.
-- **Monetisation plumbing** — billing, lead caps, F&I referrals. Correctly sequenced last, so not alarming on its own, but worth naming so it isn't mistaken for "nearly there."
-- **AI listing generation / price-positioning** — the named first SaaS product has zero code; only the second-order AI capability (reply drafting) exists.
-- **Programmatic SEO/AEO page generation and explicit AI-crawler policy** — the demand pillar has a working *engine* (ISR, sitemap, one JSON-LD type) but no *content strategy* implemented on top of it.
+- **Feed ingestion (supply).** The foundational pillar of the entire model. Nothing exists but a promise in UI copy. Everything else — page volume, lead volume, price data — is gated on this.
+- **Programmatic SEO/AEO content.** The engine exists (ISR, sitemap, one JSON-LD type, a cookie-less client built for caching); the content layer does not. Compounded by an AI-crawler policy that was never written and a robots rule that actively blocks the newest public pages.
+- **AI listing generation / price-positioning.** The named first SaaS product, zero code. Only the second-order AI capability (reply drafting) exists.
+- **Monetisation.** Billing, caps, F&I. Correctly sequenced last, but worth naming so it is not mistaken for nearly-there.
 
-Pillars that are **further ahead than the strategy narrative would suggest**:
+**Pillar further ahead than the strategy narrative implies:**
 
-- **Lead capture and attribution** — this is not a gap at all; it's the most mature, best-tested part of the codebase, and it already embodies the "evidence trail for renewals" philosophy correctly (immutable log, no per-lead invoicing hooks anywhere).
+- **Lead capture and attribution.** Not a gap. The most mature, best-tested area, already embodying the "evidence trail, not per-lead invoice" philosophy — there are no per-lead billing hooks anywhere, which is exactly right.
 
-## 3. Overall call: **Adjust**. Confidence: High.
+## 3. Overall call: **Adjust**. Confidence: **High**.
 
-This is not a "predominantly destination-marketplace UI" codebase that needs its centre of gravity moved wholesale — that would be a **Pivot** verdict, and the evidence doesn't support it. The browse/search/filter surface exists (`app/(marketplace)/cars/page.tsx` and friends) but it's compact, it's the natural front-end for the demand pillar regardless of strategy, and it hasn't grown the expensive parts of a destination marketplace (no comparison tool, no favourites-as-feature, no reviews, no valuation tool — the audit found none of these). Meanwhile the hardest, most strategically central piece — the lead engine, with its append-only evidence trail, human-approval gate, and renewal-defence framing — is already built to a standard well beyond prototype, apparently *before* the formal strategy document that describes it. That is strong evidence the underlying instincts are already aligned with the North Star; the codebase just hasn't yet been pointed at the two pillars that are genuinely and completely missing: **feed ingestion** and **programmatic SEO/AEO content**.
+The evidence does not support a Pivot. A Pivot verdict would require the build to be predominantly destination-marketplace UI with the strategic core unbuilt — and the opposite is true. The browse/filter surface is compact and, tellingly, has *not* grown the expensive furniture of a destination marketplace: no comparison tool, no favourites feature, no reviews, no valuation calculator. Meanwhile the hardest and most defensible piece — the lead engine, with DB-enforced immutable attribution, a human-approval trust gate, prompt-injection guarding, and a public metric disciplined enough to refuse to display below minimum sample size — is built to a standard well past prototype, apparently before the strategy document that describes it. That is not a codebase pointed the wrong way; it is a codebase whose author already had the right instincts and has not yet spent hours on the two pillars that are genuinely empty.
 
-**Adjust means:** stop adding to the marketplace-browsing surface, stop deferring feed ingestion, and redirect the next block of solo-developer hours at the two zero-code pillars — supply automation and AEO page generation — while continuing to harden the lead engine that's already the project's strongest asset. No component needs to be torn out.
+What sharpens the verdict on this second pass is the *character* of the demand-side gap. It is not that the SEO/AEO foundations are wrong — they are unusually well prepared. There is a purpose-built cookie-less client for cacheability, a correct ISR configuration, a dynamic sitemap, and valid structured data. The problem is that these foundations are undermined by small, cheap, unglamorous defects: a robots rule that blocks the new dealer pages by accident of prefix matching, a layout-level cookie read that silently defeats the only ISR page in production, a sitemap that omits the newest page type, and structured data with no image because the photo table was never wired. None of these is architectural. All of them are a few hours' work. The demand pillar is not far away — it is close and quietly broken, which is a much better position than it looks from the maturity ratings alone.
+
+**Adjust means:** stop extending the browsing surface; fix the four cheap demand-side defects so the foundations that already exist actually function; then put the next substantial block of hours into the two empty pillars — feed ingestion and programmatic page generation — while leaving the lead engine alone except to close its one security hole. Nothing needs to be torn out.
 
 ## 4. The single riskiest assumption
 
-**"Programmatic SEO/AEO content, built on a two-dealer, low-volume Canterbury catalogue, will generate meaningful organic or AI-crawler-referred demand before the founder has the bandwidth or dealer count to produce real content depth."** Everything downstream — the lead engine's value, the renewal-defence pitch, the flat-monthly billing model — depends on there being enough inbound demand for the evidence trail to have something to measure. With two design-partner dealers and (per the schema, no evidence of any current inventory count) likely a low three-figure listing count at best, the programmatic page count and topical depth needed to move the needle on AEO/organic is untested against actual traffic.
+**That programmatic SEO/AEO, built on two dealers' worth of Canterbury stock, will produce meaningful demand before the founder has the dealer count or the hours to give it content depth.**
 
-**Cheapest test:** this doesn't require building the pillar first. Take the listings that already exist (even hand-entered via the current manual form) and the ISR/sitemap machinery that already works today, generate the ~50 listing/model pages the roadmap targets for M2, submit the sitemap to Search Console and check AI-crawler user-agent hits in Cloudflare logs, and watch impressions/referrer data for 3–4 weeks. This validates or kills the demand-side assumption for a few hours of work, using infrastructure that's already built, well before committing to a full pSEO template system or a feed pipeline sized for national scale.
+Everything downstream rests on it. The lead engine's value, the renewal-defence pitch, and the flat-monthly billing model all assume enough inbound demand for the evidence trail to have something to measure. With two design partners and a listing count that is currently bounded by what can be typed in by hand, the page volume and topical depth needed to register with either a search engine or an answer engine is entirely untested. The failure mode is not dramatic — it is publishing fifty honest pages and watching nothing happen, six months in, with the supply pipeline already built to serve them.
+
+**The cheapest test does not require building the pillar.** It requires roughly a day:
+
+1. Fix the robots rule and add the AI-crawler allows (under an hour).
+2. Fix the ISR/cookie bug so pages are actually served cached (a few hours).
+3. Add dealer storefronts to the sitemap and give them ISR (under an hour — they already use the right client).
+4. Submit the sitemap to Search Console, then watch Cloudflare logs for GPTBot/ClaudeBot/PerplexityBot user-agent hits and Search Console for impressions over three to four weeks.
+
+That measures whether AI crawlers and search engines will actually pick up grounded, low-volume, locally-specific inventory pages — using stock and infrastructure that already exist, before committing to a template system or a feed pipeline sized for national scale. If the crawlers come and impressions climb on fifty pages, the thesis is live and M1/M2 are worth the hours. If nothing moves in a month on properly indexable pages, that is the cheapest possible discovery that demand must come from somewhere other than organic — and it arrives before the expensive work, not after.

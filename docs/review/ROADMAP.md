@@ -1,129 +1,136 @@
 # UsedCarsNZ — Roadmap
 
-**Date:** 2026-08-16
-**Depends on:** `docs/review/CURRENT_STATE.md` and `docs/review/FIT_ASSESSMENT.md`. Verdict driving this roadmap: **Adjust** — keep the lead engine and demand-surface foundations, redirect effort at feed ingestion and AEO content, defer monetisation plumbing until there's a dealer to bill.
+**Date:** 2026-09-04 (revision 2)
+**Depends on:** `docs/review/CURRENT_STATE.md`, `docs/review/FIT_ASSESSMENT.md`. Driving verdict: **Adjust** — keep the lead engine, repair the cheap demand-side defects, then build the two empty pillars (feed ingestion, programmatic pages). Defer monetisation until there is a dealer to bill.
 
-Effort estimates assume the constraint stated in the brief: one developer, a demanding day job, irregular hours. "Hours" below means focused solo build time, not calendar time.
+Hours are focused solo build time, not calendar time — the binding constraint is a demanding day job and irregular evenings, so milestones are sized to be completable in sittings rather than requiring long uninterrupted runs.
 
----
-
-## Immediate — before any real dealer's data flows through the system
-
-**Fix `approve_draft()`'s fails-open authorisation bug.** This is not a milestone, it's a live vulnerability sitting in `supabase/migrations/20260707100400_ai_drafts_harden.sql:53-60` with a diagnosed one-line fix (`coalesce(v_draft.seller_user_id = (select auth.uid()), false)`) already written into the test comment at `tests/db-invariants/ai-drafts-approval.test.ts:94-126`. Right now, any authenticated user can approve and trigger sending any dealer's draft reply. This must be closed — via a new migration, not an edit to the existing one — before M0's design-partner dealers start relying on the approval gate.
-- **Effort:** ~1 hour (agentic tool can write the migration and flip the tripwire test from `it.fails` to `it`; founder reviews and applies).
-- **Owner:** Agentic tool drafts, founder approves and merges — this is a security fix, not a founder-only task, but it should not go out unreviewed.
+Revision 2 adds **M-minus-1**, a new front-loaded milestone. The second audit pass found that several demand-side foundations already exist but are quietly broken or blocked, and repairing them is both far cheaper than the milestones they precede *and* a prerequisite for testing the riskiest assumption in the plan. Doing this first is the highest-leverage change to the sequence.
 
 ---
 
-## M0 — Validation (weeks 0–2)
+## M-1 — Unbreak what already exists (this fortnight, ~10–16 hours)
 
-**Outcome:** Two design-partner dealer agreements signed; feed formats/access confirmed for both.
-**Acceptance criteria:** Two written agreements (free listings + founding-dealer tooling rate) exist; for each dealer, the actual export mechanism is confirmed in writing (DMS export format, or read access to their existing site/feed).
-**Effort:** Founder-only; not a coding estimate.
-**Dependencies:** None — this can start immediately, in parallel with the Immediate fix above.
-**Agentic tool vs founder:** 100% founder (dealer conversations, contracts). The tool's only role is producing/refining the pilot agreement draft, which already exists at `docs/legal/pilot-agreement-DRAFT.md` per prior work — reuse, don't rebuild.
+**Outcome:** the demand-side foundations that already exist actually function, and the security hole in the approval gate is closed.
 
-*Nothing in the current codebase changes this milestone; it was already correctly scoped as founder-only and stays that way.*
+Five items, none architectural, all cheap:
+
+1. **Fix the `approve_draft()` authorisation gate.** `supabase/migrations/20260707100400_ai_drafts_harden.sql:53-60` — the check evaluates to SQL `NULL` for dealer-lane drafts and never fires. Fix via a **new migration** (never edit an applied one): `or coalesce(v_draft.seller_user_id = (select auth.uid()), false)`. Flip the tripwire test at `tests/db-invariants/ai-drafts-approval.test.ts:94-126` from `it.fails` to `it`. **~1 hour.** Must land before design-partner dealers rely on the approval gate — the human-in-the-loop guarantee is the core trust claim of the AI-reply feature.
+2. **Fix the robots rule that blocks the dealer storefronts.** `app/robots.ts:6` — `Disallow: /dealer` prefix-matches `/dealers/[id]`, so the new public dealer pages are hidden from every crawler. Narrow it to `/dealer$` and `/dealer/`, or rename one of the two routes. **~30 minutes.**
+3. **Add explicit AI-crawler rules** for GPTBot, ClaudeBot, PerplexityBot and CCBot to `app/robots.ts`. The wildcard probably already admits them, but "probably" is not the policy the strategy calls for. **~30 minutes.**
+4. **Fix the ISR/cookies bug.** `components/marketplace/chrome.tsx:13` calls `getViewer()` inside the layout wrapping every marketplace page, forcing the one ISR route dynamic under a production build. Split the header into a static shell plus a client-fetched auth sliver (or move the auth read below the cached boundary). Then remove the `next dev` fallback in `playwright.config.ts` / `.github/workflows/e2e.yml` so CI tests a production build and cannot mask this class of bug again. **~4–8 hours** — the largest item here, and the one with the most upside: it is the difference between the demand surface being cached and not.
+5. **Give the dealer storefront the same treatment as listing detail:** switch `force-dynamic` to `revalidate`-based ISR (it already uses the cookie-less `supabasePublic()` client, so this is nearly free), add its URLs to `app/sitemap.ts`, and add `AutoDealer` JSON-LD. While in `sitemap.ts`, switch it to `supabasePublic()` so it can be cached too. **~3–4 hours.**
+
+**Acceptance criteria:** the tripwire test passes as a positive assertion; `robots.txt` names the four AI crawlers and no longer disallows `/dealers/`; the E2E suite runs against `next start` and passes; a dealer storefront URL appears in `sitemap.xml`, returns a cache hit on second request, and validates in the Rich Results Test.
+
+**Agentic tool vs founder:** almost entirely tool work — well-specified, testable, and a natural fit for the repo's existing `prompts/PROMPT-*.md` work-package convention. The founder reviews the security migration before it is applied.
 
 ---
 
-## M1 — Supply rail (weeks 2–6)
+## M0 — Validation (weeks 0–2, runs in parallel with M-1)
 
-**Outcome:** Automated ingestion for both design-partner dealers; listings refresh at least daily without manual steps; ingestion failures alert the founder.
-**Why this is the top code priority:** it's the only strategic pillar with genuinely zero code today (`docs/review/CURRENT_STATE.md` §3). Everything else in the roadmap — demand pages, lead volume, dealer tooling — is gated on real inventory existing at more than manual-entry scale.
+**Outcome:** two design-partner dealer agreements in writing; feed formats and access obtained from both.
+**Acceptance criteria:** two signed agreements (free listings + founding-dealer tooling rate); for each dealer, the actual export mechanism confirmed in writing — DMS name and export format, or permissioned access to their own site's feed.
+**Dependencies:** none. Start immediately; it gates M1 entirely and is the only work that cannot be accelerated by tooling.
+**Agentic tool vs founder:** 100% founder. The tool's only contribution is the pilot agreement, which already exists at `docs/legal/pilot-agreement-DRAFT.md` — reuse it rather than rebuilding.
+
+**Note on sequencing:** M0 and M-1 are deliberately concurrent. M-1 is solo evening work; M0 is dealer conversations. Neither blocks the other, and running them together means the demand-thesis test (below) can start the moment M-1 lands rather than waiting on contracts.
+
+---
+
+## M1 — Supply rail (weeks 2–6, ~15–25 hours)
+
+**Outcome:** automated ingestion for both design partners; listings refresh at least daily with no manual steps; failures alert the founder.
+**Why it is the top build priority after M-1:** it is the only strategic pillar with genuinely zero code, and every downstream milestone — page volume for M2, lead volume for M3, comparable density for price-positioning — is gated on inventory existing beyond hand-typed scale.
+
+**Scope discipline — the most important call in this milestone:** build the simplest thing that serves two real dealers, not a general DMS integration platform. If both partners can export CSV, a parse-and-upsert path plus a scheduled trigger is a fraction of the cost of live API integrations, and can be automated further later. Build a bespoke integration *only* if a dealer's actual export mechanism leaves no choice.
+
 **Acceptance criteria:**
-- A scheduled job (reuse the existing standalone-Worker cron pattern from `workers/outbox-sweep` / `workers/keepalive`) pulls or receives each dealer's feed at least once daily.
-- Listings are upserted into the existing `listings`/`listing_photos` schema without touching RLS or the manual-entry path (keep `createListingAction` as the fallback for dealers without an exportable feed, per the Fit Assessment's "Adapt" verdict).
-- A failed ingestion run posts a founder-visible alert (reuse the cron-auth/failure pattern already proven in `lib/cron/auth.ts` and the outbox-sweep worker rather than inventing a new alerting mechanism).
-- No manual CSV-pasting step required for day-to-day operation once set up.
-**Recommended scope-down:** build the *simplest* mechanism that satisfies two real dealers, not a general DMS-integration platform. If both design partners can export CSV, start there — a CSV-upload-and-parse admin action is a fraction of the effort of a live DMS API integration and can always be automated further later. Only build a scheduled pull/API integration if the dealer's actual export mechanism demands it.
-**Effort:** 15–25 hours for a CSV-based pipeline (parser + upsert + admin trigger + cron + alerting); add 10–15 hours per dealer if a bespoke API/scrape-with-consent integration turns out to be necessary instead.
-**Dependencies:** M0 (need the actual feed format from real dealers before building the parser — do not build this speculatively against an assumed CSV schema).
-**Agentic tool vs founder:** Tool can write the parser, upsert logic, cron worker, and tests almost entirely unsupervised once the founder hands it a real sample export. Founder's job is obtaining that sample and validating the parsed output against the dealer's actual stock.
+- A scheduled job (reuse the standalone-Worker cron pattern proven in `workers/outbox-sweep`) refreshes each dealer's inventory at least daily.
+- Listings upsert into the existing `listings` schema without touching RLS and without disturbing the manual-entry path, which stays as the long-tail fallback.
+- A failed run produces a founder-visible alert — reuse the existing cron-auth and failure patterns rather than inventing new alerting.
+- Wire `listing_photos` as part of this milestone: photos arrive with the feed, and until they exist the vehicle structured data has no `image` and the demand pillar is running with one hand tied.
+- Zero manual steps in day-to-day operation.
+
+**Effort:** 15–25 hours for a CSV pipeline including photos and alerting; add 10–15 hours per dealer if a bespoke API integration proves necessary.
+**Dependencies:** M0 — do not build the parser speculatively against an assumed schema. Wait for a real sample export.
+**Agentic tool vs founder:** the tool can write the parser, upsert logic, cron worker, photo handling, and tests largely unsupervised once handed a real sample file. The founder obtains that file and validates parsed output against the dealer's actual stock — the one step that cannot be automated, because only the dealer knows whether the data is right.
 
 ---
 
-## M2 — Demand surface (weeks 4–8, can overlap M1)
+## M2 — Demand surface (weeks 4–10, overlapping M1)
 
-**Outcome:** Listing/model pages server-rendered and cached correctly in production; Schema.org markup validating; AI-crawler policy explicit; sitemap live; first 50 programmatic pages grounded in live stock.
-**What's already done — pull forward:**
-- ISR is already implemented and correct in *design* on `app/(marketplace)/cars/[make]/[model]/[year]/[id]/page.tsx` (`revalidate = 300`, on-demand `revalidatePath` invalidation).
-- `app/sitemap.ts` already exists, dynamic and DB-driven.
-- JSON-LD already exists on the listing detail page (`Car`/`Offer`).
-**What must be fixed or built:**
-- **Fix the production ISR bug** (`docs/review/CURRENT_STATE.md` §1) — the cookie-read in `components/marketplace/chrome.tsx` forces the page dynamic under `next start`, and this is currently masked because CI's E2E suite runs against `next dev`. Likely fix: read the auth cookie only in a client-side/edge-safe way in the header, or split the header into a static shell + a client-fetched auth sliver, so the page itself stays statically cacheable.
-- **Explicit AI-crawler robots policy** — add named `GPTBot`/`ClaudeBot`/`PerplexityBot`/`CCBot` allow rules to `app/robots.ts` (currently only a generic wildcard).
-- **Extend JSON-LD** to the dealer storefront page (`AutoDealer`/`LocalBusiness`) and reconcile the `Car` vs. `Vehicle` schema.org type choice deliberately.
-- **Build the programmatic page template layer** — this is genuinely new work: make/model/location landing pages grounded in real stock (not thin AI filler, per the strategic constraint). The existing dynamic route + ISR pattern is the right foundation; this milestone is about generating the *content templates* on top of it, gated on M1 supplying enough real inventory to ground 50 pages honestly.
-**Acceptance criteria:** Rich Results Test passes on listing, dealer, and new landing-page templates; `robots.txt` explicitly names the three AI crawlers; sitemap includes all page types; 50 live pages exist backed by real (not synthetic) stock data.
-**Effort:** 10–15 hours for the ISR/cookie fix and robots/JSON-LD extension (small, mechanical); 20–30 hours for the programmatic page template system, assuming M1 has supplied real inventory to ground it in.
-**Dependencies:** M1 for real inventory volume (50 honest pages need real stock, not the current handful of manually entered listings); otherwise independent.
-**Agentic tool vs founder:** Almost entirely tool work — this is exactly the kind of scoped, testable, spec-driven build the existing `prompts/PROMPT-*.md` convention in this repo already handles well. Founder's role is defining which page templates are worth building (which make/model/location combinations actually exist in the Canterbury stock) and eyeballing output for "thin AI filler."
+**Outcome:** Schema.org markup validating across all page types; sitemap complete; first 50 programmatic pages live and grounded in real stock.
+
+**Pulled forward into M-1** (do not re-plan these): robots policy, AI-crawler rules, ISR correctness, dealer-page caching and markup, sitemap coverage.
+
+**Remaining work is the genuinely new part — the programmatic page template layer:** make/model, make/model/location, and body-type/price-band landing pages, generated from real inventory. The routing pattern and caching primitive already exist; what is missing is the template system and, more importantly, the **grounding rules** that keep these pages out of thin-AI-filler territory. The strategic constraint is explicit on this point, and it is also a practical one: fifty pages of generated prose about cars that are not in stock is precisely the pattern search engines penalise. Every page must be backed by live listings, and pages should disappear or degrade when stock does.
+
+**Acceptance criteria:** Rich Results Test passes on listing, dealer, and landing-page templates; 50 live programmatic pages exist, each backed by at least one real active listing; every page type appears in `sitemap.xml`; no page renders generated prose about inventory that does not exist.
+**Effort:** 20–30 hours for the template system, assuming M1 has supplied real inventory to ground it.
+**Dependencies:** M-1 (foundations must work first, or these pages inherit the same defects at fifty times the scale); M1 for inventory volume — fifty honest pages need real stock.
+**Agentic tool vs founder:** near-entirely tool work. The founder decides which template axes are worth generating — which make/model/location combinations actually exist in Canterbury stock — and reads a sample for filler.
+
+**The demand-thesis test rides on this milestone.** After M-1 lands, submit the sitemap and watch Cloudflare logs for AI-crawler user agents and Search Console for impressions over three to four weeks, *before* committing the 20–30 hours to the template layer. If properly indexable pages produce no crawler interest in a month, that is the cheapest available signal that demand must come from somewhere other than organic — and it arrives before the expensive work rather than after it.
 
 ---
 
-## M3 — Lead engine (weeks 2–10, already largely built — validate and complete, don't rebuild)
+## M3 — Lead engine (weeks 2–12 — largely built; validate, do not rebuild)
 
-**Outcome:** Verified leads flowing to design-partner dealers with a credible evidence trail.
-**What's already done — pull forward, this is the strongest asset in the codebase:**
-- Enquiry capture with Turnstile bot defence, rate limiting, fail-closed behaviour.
-- Email-lead ingestion from forwarded Trade Me emails, fully wired with HMAC verification and dedup.
-- Append-only `lead_events` audit log, immutable at the DB layer.
-- AI-drafted dealer replies with a human-approval gate before sending.
-- Dealer leads inbox, conversion-metrics dashboard, and a public min-N-gated proof metric.
-- Strong test coverage across unit, DB-invariant, and E2E layers (`docs/review/CURRENT_STATE.md` §3).
-**What's genuinely missing:**
-- OTP-verified enquiry forms and proxy phone numbers are named in the strategy but don't exist. Per the Fit Assessment, **defer** these — build only if a design-partner dealer specifically asks for stronger attribution proof. Don't build speculatively; the immutable event log likely already satisfies the "defend renewals" purpose for the first 20 leads.
-- The 20-verified-lead validation target itself hasn't happened yet, because it depends on M1 (real listings to enquire about) and M0 (real dealers to receive them) — this milestone's remaining work is mostly *waiting on* the other two, not building.
-**Acceptance criteria:** 20 real (not seeded/demo) verified leads delivered to the two design-partner dealers, visible in their leads inbox and metrics dashboard, with the `approve_draft()` fix already applied (see Immediate, above).
-**Effort:** 5–10 hours of polish (mostly: confirm the demo-seeded assumptions don't leak into production behaviour, confirm alerting works for a real dealer's first live lead) — this is validation effort, not build effort.
-**Dependencies:** M0 (real dealers), M1 (real listings for buyers to enquire about).
-**Agentic tool vs founder:** Founder-heavy for this milestone specifically — the code is done; what's left is watching real dealers use it and fielding their feedback, which only the founder can do.
+**Outcome:** verified leads flowing to design-partner dealers with an intact evidence trail.
+
+**Already built — pull forward:** enquiry capture with Turnstile, rate limiting and fail-closed behaviour; email-lead ingestion from forwarded Trade Me notifications with HMAC verification and dedup; the append-only `lead_events` trail; AI reply drafting behind a human-approval gate; the dealer leads inbox; the conversion-metrics dashboard; the min-N-gated public proof metric; and strong test coverage across unit, DB-invariant, and E2E layers.
+
+**Genuinely outstanding:**
+- The `approve_draft()` fix — moved to M-1, because it should not wait.
+- OTP verification and proxy phone numbers: **defer deliberately.** Named in the brief, absent in code, and not required to deliver or defend the first twenty leads — the immutable event log already provides a defensible attribution story. Proxy numbers in particular add recurring telephony cost and a live integration for a benefit no dealer has yet asked for. Build when a design partner actually challenges attribution.
+- The twenty-verified-leads target itself, which is gated on M0 and M1 rather than on code.
+
+**Acceptance criteria:** 20 real (not seeded) leads delivered to the two design partners, visible in their inbox and metrics dashboard, with the approval-gate fix applied.
+**Effort:** 5–10 hours of validation polish — confirming demo-seeded assumptions do not leak into production behaviour, and that alerting fires on a real dealer's first live lead. This is watching, not building.
+**Dependencies:** M0 (real dealers), M1 (real stock to enquire about).
+**Agentic tool vs founder:** founder-heavy. The code is done; what remains is watching real dealers use it and responding to what they say.
 
 ---
 
-## M4 — Revenue proof (weeks 10–16)
+## M4 — Revenue proof (weeks 12–20, ~15–20 hours)
 
-**Outcome:** At least one dealer paying the founding tooling rate; automated monthly report; one F&I referral partnership tracked end-to-end.
-**What must be built (currently zero code):**
-- Minimal billing: a `dealers.plan`/`dealers.lead_cap` column plus manual or lightweight Stripe integration — do not over-build here. A solo founder with one or two paying dealers does not need a self-serve billing platform; an invoice sent manually against a tracked cap counter is enough to prove the model, with Stripe Checkout/subscriptions added only once there are enough dealers that manual invoicing becomes the bottleneck.
-- Automated monthly report: reuse `lib/metrics-views.ts` and the existing CSV export (`app/api/metrics/route.ts`) — this is mostly wiring an email/PDF export around data that already exists, not new data modelling.
-- F&I referral tracking: a simple `referrals` table (dealer, buyer, partner, status, settled-value) and a manual link/status-update flow is sufficient to prove the model; no need for a full partner-integration platform yet.
-**Acceptance criteria:** One signed founding-dealer invoice paid; one automated monthly report delivered without manual data-pulling; one F&I referral tracked from lead to settlement in the schema.
-**Effort:** 15–20 hours (mostly the lead-cap counter + manual billing hook + referral table + report automation — all additive to existing schema/metrics code, no architectural change).
-**Dependencies:** M0–M3 (needs real paying dealers and real lead volume to prove against).
-**Agentic tool vs founder:** Tool builds the schema/report/cap-counter; founder handles the actual sales conversation, invoice, and F&I partner relationship.
+**Outcome:** at least one dealer paying the founding tooling rate; monthly report automated; one F&I referral tracked end to end.
+
+**Scope discipline:** do not build a self-serve billing platform for one or two dealers. A `dealers.plan` / `dealers.lead_cap` column, a cap counter, and a manually issued invoice proves the commercial model. Stripe Checkout arrives when manual invoicing becomes the bottleneck — which, at two to five dealers, it will not be. The monthly report is mostly wiring email or PDF delivery around `lib/metrics-views.ts` and the existing CSV export, not new data modelling. F&I referral tracking needs a simple `referrals` table (dealer, buyer, partner, status, settled value), not a partner-integration platform.
+
+**Acceptance criteria:** one founding-dealer invoice issued and paid; one monthly report delivered without manual data-pulling; one F&I referral tracked from lead to settlement in the schema.
+**Effort:** 15–20 hours, all additive to existing schema and metrics code.
+**Dependencies:** M0–M3.
+**Agentic tool vs founder:** tool builds the cap counter, referral table, and report automation; the founder does the sales conversation, the invoice, and the F&I partnership.
 
 ---
 
 ## M5 — Density (months 6–12)
 
 **Outcome:** 10–15 Canterbury rooftops live; onboarding under one hour of founder time; first public Canterbury price report.
-**Acceptance criteria:** 10–15 active dealers; a documented onboarding runbook proven to take under an hour of founder time per dealer (this depends entirely on how well M1's ingestion generalises beyond the two design partners — if M1 was scoped too narrowly to just their two feed formats, this is where that debt is paid); one public price report published, grounded in real accumulated `lead_events`/`listings` data.
-**Effort:** Hard to estimate meaningfully this far out; order-of-magnitude 40–60 hours across onboarding tooling, feed-format generalisation, and the price-report build — but the real constraint at this stage is dealer-acquisition bandwidth, not code.
-**Dependencies:** M1 (feed ingestion must generalise beyond two bespoke formats), M4 (a working revenue motion to sell against).
-**Agentic tool vs founder:** Founder-dominant (10–15 individual dealer relationships); tool's role is making each additional dealer's onboarding marginal cost near zero in code.
+**Acceptance criteria:** 10–15 active dealers; a documented onboarding runbook demonstrably completable in under an hour per dealer; one public price report grounded in real accumulated data.
+**The dependency that actually matters:** how well M1's ingestion generalises beyond two bespoke formats. If M1 was scoped tightly to two dealers' exports — which is the right call at the time — this milestone is where that debt is repaid, and the generalisation work should be planned honestly rather than discovered.
+**Effort:** order-of-magnitude 40–60 hours across onboarding tooling, feed generalisation, and the price report. The real constraint at this stage is dealer-acquisition bandwidth, not code.
+**Agentic tool vs founder:** founder-dominant (10–15 relationships); the tool's job is driving each additional dealer's marginal onboarding cost toward zero.
 
 ---
 
 ## M6 — Data layer (year 2+)
 
-**Outcome:** Price index productised; listings exposed via a clean API/MCP surface for AI assistants.
-**Acceptance criteria:** unchanged from the brief's default — not worth detailing further until 18–24 months of consented data actually exists, which the current schema has only just started accumulating (`lead_events` and `metrics_*` views went live 2026-07-11, per `docs/review/CURRENT_STATE.md` §2).
-**Effort/dependencies:** Not usefully estimated at this distance.
+**Outcome:** price index productised; listings exposed via a clean API/MCP surface for AI assistants.
+Not usefully detailed at this distance. Worth noting only that the data clock started on 2026-07-11 when `lead_events` and the `metrics_*` views went live — the 18–24 months of consented data this milestone assumes is accruing from that date, not from project start.
 
 ---
 
 ## Kill list
 
-Stop maintaining or actively decide not to build:
-
-- **Root-level `.patch`/`pre-recovery-*` files** (`marketplace-integration.patch`, `pre-recovery-staged.patch`, `pre-recovery-status.txt`, `pre-recovery-unstaged.patch`) — debris from a past recovery incident. Delete.
-- **`docs/AUDIT-LEAD-ENGINE.md`** — superseded by current migration state; move to `docs/archive/` so it stops being mistaken for current fact by future readers or future AI-assisted sessions.
-- **Any further investment in marketplace browse/filter richness** — comparison tools, favourites-as-a-feature, reviews/ratings, valuation calculators. None of these exist today (correctly), and none should be built; they belong to the destination-marketplace model this business explicitly isn't pursuing.
-- **The separate demo Cloudflare environment and its keepalive cron**, once real dealer pilots are live. It's working infrastructure today and has value for sales demos before M0 closes, but a second environment with its own deploy pipeline, cron jobs, and runbook is real ongoing maintenance load for a solo developer. Set an explicit trigger to retire it: once two real dealers are live in production (post-M3), re-evaluate whether the demo environment still earns its keep, or whether a recorded walkthrough replaces it.
-- **The "frozen" legacy `/api/lead` route** referenced in comments in `app/api/enquiries/route.ts:20-25` — if nothing still calls it, delete it rather than carrying it as a comment-documented relic.
+- **Root-level `.patch` and `pre-recovery-*` files** (`marketplace-integration.patch`, `pre-recovery-staged.patch`, `pre-recovery-status.txt`, `pre-recovery-unstaged.patch`) — recovery debris. Delete.
+- **`docs/AUDIT-LEAD-ENGINE.md`** — superseded by current migration state and actively misleading, including to future agentic sessions that reasonably treat repo docs as ground truth. Move to `docs/archive/`.
+- **The frozen legacy `/api/lead` route** (referenced in comments at `app/api/enquiries/route.ts:20-25`) — if nothing calls it, delete it rather than carrying it as a comment-documented relic.
+- **All further marketplace browse/filter richness** — comparison tools, favourites-as-feature, reviews, valuation calculators, finance calculators. None exist today, which is correct. None should be built; they belong to the destination-marketplace model this business is explicitly not pursuing.
+- **The demo environment and its keepalive Worker — on a trigger, not immediately.** It has real pre-sales value through M0–M3. But a second environment with its own deploy pipeline, cron jobs, runbook, and a Worker whose only purpose is preventing a free-tier database from pausing is ongoing load for a solo developer. Set the trigger explicitly: once two real dealers are live in production after M3, decide whether it still earns its keep or whether a recorded walkthrough replaces it.
 
 ## Definition of success at 12 months
 
-Two Canterbury design-partner dealers have moved through the full funnel — consented feed ingestion refreshing daily without founder intervention, at least 50 programmatic listing/model/dealer pages live and indexed with verified AI-crawler traffic in the logs, a combined total well past the first 20 verified leads with an intact evidence trail, and at least one dealer paying the founding-tooling rate with a monthly report they've actually read. The `approve_draft()` class of bug has a standing pattern (migration + tripwire test) that catches the next one before it ships. The demo environment has either been retired or has an explicit reason it's still earning its keep. None of this requires the marketplace browse UI to have grown a single new feature — success at 12 months looks like the lead engine and the feed pipeline carrying the business, with the browse pages quietly doing their job as SEO landing pages in the background.
+Two Canterbury design-partner dealers have been through the whole funnel: consented inventory refreshing daily without the founder touching it, at least fifty programmatic pages live and genuinely indexed with AI-crawler hits visible in the logs, comfortably more than the first twenty verified leads delivered with an intact evidence trail, and at least one dealer paying the founding tooling rate against a monthly report they have actually read. The approval gate is enforced, the E2E suite runs against a production build so the next ISR-class bug cannot hide behind `next dev`, and the demo environment has either been retired or has an articulated reason to persist. None of this requires the browse UI to have gained a single feature — success looks like the feed pipeline and the lead engine carrying the business, with the marketplace pages quietly doing their real job as landing pages for search and answer engines.

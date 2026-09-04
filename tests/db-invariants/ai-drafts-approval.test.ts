@@ -92,22 +92,20 @@ describe.skipIf(!isLocal)("ai_drafts approval state machine (SQL boundary)", () 
   });
 
   /**
-   * ── KNOWN HOLE — T2 FINDING #1 (founder decision; do not fix in this package) ──
-   * approve_draft()'s guard fails OPEN for dealer-lane drafts. seller_user_id
-   * is NULL on every dealer draft, so `v_draft.seller_user_id = auth.uid()`
-   * evaluates to NULL and `IF NOT (false OR NULL OR false)` is NULL → the
-   * RAISE is skipped (SQL three-valued logic). ANY authenticated user — even
-   * an unrelated buyer account — can approve ANY dealer's pending draft,
-   * forging approved_by/approved_at and a draft_approved lead_event.
-   * Fix (new migration): coalesce the equality, e.g.
-   *   or coalesce(v_draft.seller_user_id = (select auth.uid()), false)
-   * This is `it.fails`: it asserts the INTENDED behaviour and is expected to
-   * fail while the hole exists. When a migration fixes approve_draft, this
-   * test will flip to "unexpectedly passing" — change it to a plain `it` then.
+   * ── T2 FINDING #1 — FIXED by 20260904090000_approve_draft_authz_fix.sql ──
+   * approve_draft()'s guard used to fail OPEN for dealer-lane drafts:
+   * seller_user_id is NULL on every dealer draft, so
+   * `v_draft.seller_user_id = auth.uid()` evaluated to NULL and
+   * `IF NOT (false OR NULL OR false)` was NULL → the RAISE was skipped (SQL
+   * three-valued logic), letting any authenticated user who knew a draft UUID
+   * approve it. The fix coalesces that one term; is_dealer_member() and
+   * is_admin() return exists(...) and are never NULL, so the predicate is now
+   * two-valued throughout. This was `it.fails` while the hole was open and is a
+   * plain `it` now — if it ever goes red again the gate has regressed.
    * (RLS policies with the same NULL comparison are safe — a NULL USING/CHECK
-   * fails CLOSED; only this plpgsql IF fails open.)
+   * fails CLOSED; only this plpgsql IF failed open.)
    */
-  it.fails("approve_draft(): an unauthorized approval writes NEITHER the status nor the event [KNOWN HOLE — see comment]", async () => {
+  it("approve_draft(): an unauthorized approval writes NEITHER the status nor the event", async () => {
     const draftId = await freshPendingDraft(fx, "unauthorized");
 
     // Dealer B is not a member of dealer A — must be refused.

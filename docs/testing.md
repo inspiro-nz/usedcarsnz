@@ -145,9 +145,11 @@ the "enforced at the DB, not by policy" proof (Strategy §7):
   `approved_by`+`approved_at` impossible even for `service_role`; a client's
   bare status UPDATE dies on the column-scoped grant (only `edited_text` is
   writable); `approve_draft()` writes the status flip and the `draft_approved`
-  event atomically. One `it.fails` tripwire documents a **known hole** in
-  `approve_draft()`'s guard (NULL `seller_user_id` fails open) — it goes red
-  when a migration fixes it, at which point flip it to a plain `it`.
+  event atomically; and a cross-dealer approval is refused. That last test was
+  an `it.fails` tripwire documenting a **known hole** — a NULL `seller_user_id`
+  made the guard fail open for dealer-lane drafts — until
+  `20260904090000_approve_draft_authz_fix.sql` coalesced the comparison. It is a
+  plain `it` now; if it goes red the authorisation gate has regressed.
 - **`rls-deny-matrix.test.ts`** — anon / dealer-A / dealer-B clients each prove
   the others' enquiries, drafts, messages, events, aliases and metrics rows are
   invisible/unwritable, across every RLS-bearing table.

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabasePublic } from "@/lib/supabase/public";
 import type { DealerRow, ListingRow } from "@/lib/db/types";
@@ -219,10 +220,21 @@ export default async function ListingPage({
           {dealer ? (
             <div className="mt-4 rounded-2xl border border-slate-100 bg-white shadow-sm p-5 text-sm">
               <p className="text-xs uppercase tracking-wide text-slate-500">Seller</p>
-              <p className="mt-1 font-medium text-slate-900">{dealer.business_name}</p>
+              <Link
+                href={`/dealers/${dealer.id}`}
+                className="mt-1 block font-medium text-slate-900 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-900"
+              >
+                {dealer.business_name}
+              </Link>
               <p className="text-slate-500">
                 {[dealer.suburb, dealer.city].filter(Boolean).join(", ")}
               </p>
+              <Link
+                href={`/dealers/${dealer.id}`}
+                className="mt-2 inline-block text-xs font-medium text-orange-600 hover:text-orange-700"
+              >
+                View all cars from this dealer →
+              </Link>
               {dealer.phone ? (
                 <p className="tabular-nums mt-1 text-slate-900">{dealer.phone}</p>
               ) : null}

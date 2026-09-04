@@ -7,6 +7,7 @@ import type {
   EnquiryRow,
   LeadEventRow,
   ListingRow,
+  MessageRow,
 } from "@/lib/db/types";
 import { listingTitle, nzd, timeNZ } from "@/lib/format";
 import { Badge } from "@/components/marketplace/ui";
@@ -35,7 +36,7 @@ export default async function LeadDetailPage({
     .maybeSingle<EnquiryRow>();
   if (!enquiry) notFound();
 
-  const [{ data: listing }, { data: drafts }, { data: events }] =
+  const [{ data: listing }, { data: drafts }, { data: events }, { data: messages }] =
     await Promise.all([
       sb
         .from("listings")
@@ -52,6 +53,11 @@ export default async function LeadDetailPage({
         .select("*")
         .eq("lead_id", id)
         .order("occurred_at", { ascending: true }),
+      sb
+        .from("messages")
+        .select("*")
+        .eq("enquiry_id", id)
+        .order("created_at", { ascending: true }),
     ]);
 
   const pendingDraft = ((drafts ?? []) as AiDraftRow[]).find(
@@ -94,6 +100,25 @@ export default async function LeadDetailPage({
                 <QualItem label="Timeline" value={q.timeline?.replace("_", " ") ?? "—"} />
               </dl>
             ) : null}
+          </section>
+
+          {/* The full conversation the buyer sees (messages table) */}
+          <section className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Conversation
+            </h2>
+            <div className="mt-4 space-y-3">
+              {((messages ?? []) as MessageRow[]).length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  Nothing sent yet. Approve the draft below to send the first
+                  reply — it will appear here.
+                </p>
+              ) : (
+                ((messages ?? []) as MessageRow[]).map((m) => (
+                  <MessageBubble key={m.id} message={m} />
+                ))
+              )}
+            </div>
           </section>
 
           {/* The human-approval gate */}
@@ -186,6 +211,58 @@ export default async function LeadDetailPage({
         </aside>
       </div>
     </main>
+  );
+}
+
+/** One message in the lead conversation. Buyer left-aligned; AI / your replies
+ *  right-aligned, so the thread reads like the exchange the buyer received. */
+function MessageBubble({ message }: { message: MessageRow }) {
+  const meta: Record<
+    MessageRow["sender"],
+    { label: string; align: "left" | "right"; cls: string }
+  > = {
+    buyer: {
+      label: "Buyer",
+      align: "left",
+      cls: "bg-slate-100 text-slate-900",
+    },
+    ai: {
+      label: "AI assistant",
+      align: "right",
+      cls: "bg-orange-50 text-orange-900",
+    },
+    dealer: {
+      label: "You · sent",
+      align: "right",
+      cls: "bg-slate-900 text-white",
+    },
+    system: {
+      label: "System",
+      align: "left",
+      cls: "bg-slate-50 text-slate-500",
+    },
+  };
+  const m = meta[message.sender] ?? meta.system;
+  return (
+    <div className={m.align === "right" ? "flex justify-end" : "flex justify-start"}>
+      <div className="max-w-[85%]">
+        <div
+          className={`flex items-baseline gap-2 ${m.align === "right" ? "justify-end" : ""}`}
+        >
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {m.label}
+          </span>
+          <span className="tabular-nums text-xs text-slate-400">
+            {timeNZ(message.created_at)}
+          </span>
+        </div>
+        <p
+          className={`mt-1 whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.cls}`}
+        >
+          {message.body}
+        </p>
+      </div>
+    </div>
   );
 }
 

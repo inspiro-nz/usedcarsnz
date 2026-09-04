@@ -4,6 +4,11 @@ import type { ListingRow } from "@/lib/db/types";
 import { ListingCard } from "@/components/marketplace/listing-card";
 import { Empty, Field, inputCls } from "@/components/marketplace/ui";
 
+interface DealerFacet {
+  id: string;
+  business_name: string;
+}
+
 // Dynamic: results depend on searchParams (filters), so this page can't be a
 // single ISR entry. The two reads below run in parallel (no waterfall).
 export const dynamic = "force-dynamic";
@@ -12,6 +17,7 @@ export const metadata: Metadata = { title: "Browse used cars" };
 interface Search {
   q?: string;
   make?: string;
+  dealer?: string;
   price_max?: string;
   year_min?: string;
   fuel?: string;
@@ -38,21 +44,29 @@ export default async function CarsPage({
     query = query.or(`make.ilike.%${q}%,model.ilike.%${q}%,title.ilike.%${q}%`);
   }
   if (params.make) query = query.ilike("make", params.make);
+  if (params.dealer) query = query.eq("dealer_id", params.dealer);
   if (params.price_max) query = query.lte("price_nzd", Number(params.price_max));
   if (params.year_min) query = query.gte("year", Number(params.year_min));
   if (params.fuel) query = query.eq("fuel", params.fuel);
   if (params.transmission) query = query.eq("transmission", params.transmission);
 
-  // Results and the makes facet are independent — fetch them in parallel so the
-  // page never waits on one read before starting the other.
-  const [{ data }, { data: makesRaw }] = await Promise.all([
+  // Results, the makes facet, and the dealer facet are independent — fetch them
+  // in parallel so the page never waits on one read before starting the next.
+  const [{ data }, { data: makesRaw }, { data: dealersRaw }] = await Promise.all([
     query,
     sb.from("listings").select("make").eq("status", "active").limit(500),
+    sb
+      .from("dealers")
+      .select("id, business_name")
+      .eq("status", "approved")
+      .order("business_name", { ascending: true }),
   ]);
   const listings = (data ?? []) as ListingRow[];
   const makes = Array.from(
     new Set(((makesRaw ?? []) as { make: string }[]).map((m) => m.make)),
   ).sort();
+  const dealers = (dealersRaw ?? []) as DealerFacet[];
+  const dealerNameById = new Map(dealers.map((d) => [d.id, d.business_name]));
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -74,6 +88,16 @@ export default async function CarsPage({
               {makes.map((m) => (
                 <option key={m} value={m}>
                   {m}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Dealer">
+            <select name="dealer" defaultValue={params.dealer ?? ""} className={inputCls}>
+              <option value="">Any dealer</option>
+              {dealers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.business_name}
                 </option>
               ))}
             </select>
@@ -111,7 +135,11 @@ export default async function CarsPage({
           {listings.length ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {listings.map((l) => (
-                <ListingCard key={l.id} listing={l} />
+                <ListingCard
+                  key={l.id}
+                  listing={l}
+                  dealerName={l.dealer_id ? dealerNameById.get(l.dealer_id) : null}
+                />
               ))}
             </div>
           ) : (

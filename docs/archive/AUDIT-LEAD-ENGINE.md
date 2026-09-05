@@ -1,3 +1,6 @@
+> **ARCHIVED** — pre-dates migrations after 2026-07-04 and describes assumptions that were later corrected.
+> Do not use as ground truth; see `docs/review/CURRENT_STATE.md`.
+
 # Lead-engine audit (re-audit, supersedes prior version)
 
 **Audited at:** commit `0f44419` (HEAD of `develop`), checked out on `feature/ai-service`, 2026-07-09.

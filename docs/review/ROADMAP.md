@@ -9,21 +9,23 @@ Revision 2 adds **M-minus-1**, a new front-loaded milestone. The second audit pa
 
 ---
 
-## M-1 — Unbreak what already exists (this fortnight, ~10–16 hours)
+## M-1 — Unbreak what already exists — ✅ DONE (PR #45, PR #47, close-out PR from `chore/m1-closeout`; 4–5 Sep 2026)
 
 **Outcome:** the demand-side foundations that already exist actually function, and the security hole in the approval gate is closed.
 
-Five items, none architectural, all cheap:
+Five items, none architectural, all cheap — all landed:
 
-1. **Fix the `approve_draft()` authorisation gate.** `supabase/migrations/20260707100400_ai_drafts_harden.sql:53-60` — the check evaluates to SQL `NULL` for dealer-lane drafts and never fires. Fix via a **new migration** (never edit an applied one): `or coalesce(v_draft.seller_user_id = (select auth.uid()), false)`. Flip the tripwire test at `tests/db-invariants/ai-drafts-approval.test.ts:94-126` from `it.fails` to `it`. **~1 hour.** Must land before design-partner dealers rely on the approval gate — the human-in-the-loop guarantee is the core trust claim of the AI-reply feature.
-2. **Fix the robots rule that blocks the dealer storefronts.** `app/robots.ts:6` — `Disallow: /dealer` prefix-matches `/dealers/[id]`, so the new public dealer pages are hidden from every crawler. Narrow it to `/dealer$` and `/dealer/`, or rename one of the two routes. **~30 minutes.**
-3. **Add explicit AI-crawler rules** for GPTBot, ClaudeBot, PerplexityBot and CCBot to `app/robots.ts`. The wildcard probably already admits them, but "probably" is not the policy the strategy calls for. **~30 minutes.**
-4. ✅ **Fix the ISR/cookies bug.** ~~`components/marketplace/chrome.tsx:13` calls `getViewer()` inside the layout wrapping every marketplace page, forcing the one ISR route dynamic under a production build.~~ **Done — PR `fix/isr-header-cookies` (PROMPT-11).** Header split into a static shell plus a client-fetched auth sliver (`GET /api/viewer`, RLS-scoped, booleans only; a `<Suspense>` boundary was tested and does not help without PPR). `playwright.config.ts` / `e2e.yml` now run `next build && next start`; `e2e/marketplace.spec.ts` asserts `x-nextjs-cache: HIT` on the second request for listing detail and dealer storefront — fails on the pre-fix `develop`, passes on the branch.
-5. **Give the dealer storefront the same treatment as listing detail:** ✅ ~~switch `force-dynamic` to `revalidate`-based ISR~~ (done in the same PR as item 4 — `revalidate = 300`, on-demand invalidation from `dealer/actions.ts` alongside listing detail); ✅ add its URLs to `app/sitemap.ts`, ✅ `AutoDealer` JSON-LD, ✅ `sitemap.ts` on `supabasePublic()` (all 4 Sep, `6fe65b9`). Remaining: validate the storefront in the Rich Results Test (founder, manual).
+1. ✅ **Fix the `approve_draft()` authorisation gate.** **Done — PR #45 (`6fe65b9`).** New migration adds `coalesce(..., false)` so the dealer-lane check can no longer evaluate to SQL `NULL`; the tripwire at `tests/db-invariants/ai-drafts-approval.test.ts` flipped from `it.fails` to a positive `it`. The same PR (`db8ae8f`) closed a second hole found on the way: `anon` held an explicit INSERT grant on the immutable `lead_events` log via default privileges.
+2. ✅ **Fix the robots rule that blocks the dealer storefronts.** **Done — PR #45.** `app/robots.ts` no longer prefix-blocks `/dealers/[id]`.
+3. ✅ **Add explicit AI-crawler rules** for GPTBot, ClaudeBot, PerplexityBot and CCBot. **Done — PR #45.**
+4. ✅ **Fix the ISR/cookies bug.** **Done — PR #47 (`fix/isr-header-cookies`, PROMPT-11).** Header split into a static shell plus a client-fetched auth sliver (`GET /api/viewer`, RLS-scoped, booleans only; a `<Suspense>` boundary was tested and does not help without PPR). `playwright.config.ts` / `e2e.yml` now run `next build && next start`; `e2e/marketplace.spec.ts` asserts `x-nextjs-cache: HIT` on the second request for listing detail and dealer storefront — fails on the pre-fix `develop`, passes on the branch.
+5. ✅ **Give the dealer storefront the same treatment as listing detail:** `revalidate = 300` ISR with on-demand invalidation from `dealer/actions.ts` (PR #47); storefront URLs in `app/sitemap.ts`, `AutoDealer` JSON-LD, `sitemap.ts` on `supabasePublic()` (PR #45). **One founder tick outstanding:** validate a storefront URL in the Rich Results Test (manual, not code).
 
-**Acceptance criteria:** the tripwire test passes as a positive assertion; `robots.txt` names the four AI crawlers and no longer disallows `/dealers/`; the E2E suite runs against `next start` and passes; a dealer storefront URL appears in `sitemap.xml`, returns a cache hit on second request, and validates in the Rich Results Test.
+**Close-out (PROMPT-12, `chore/m1-closeout`):** recovery debris deleted, `docs/AUDIT-LEAD-ENGINE.md` archived, the E2E dealer fixture now re-points `owner_user_id` at the current `E2E_DEALER_EMAIL` instead of silently keeping its first owner, and `docs/review/NEXT.md` records what M1 is gated on.
 
-**Agentic tool vs founder:** almost entirely tool work — well-specified, testable, and a natural fit for the repo's existing `prompts/PROMPT-*.md` work-package convention. The founder reviews the security migration before it is applied.
+**Acceptance criteria (met, except the manual Rich Results check):** the tripwire test passes as a positive assertion; `robots.txt` names the four AI crawlers and no longer disallows `/dealers/`; the E2E suite runs against `next start` and passes; a dealer storefront URL appears in `sitemap.xml` and returns a cache hit on second request.
+
+**Next:** see `docs/review/NEXT.md` — M1 feed ingestion, blocked until a design-partner dealer supplies a real sample export.
 
 ---
 
@@ -125,9 +127,8 @@ Not usefully detailed at this distance. Worth noting only that the data clock st
 
 ## Kill list
 
-- **Root-level `.patch` and `pre-recovery-*` files** (`marketplace-integration.patch`, `pre-recovery-staged.patch`, `pre-recovery-status.txt`, `pre-recovery-unstaged.patch`) — recovery debris. Delete.
-- **`docs/AUDIT-LEAD-ENGINE.md`** — superseded by current migration state and actively misleading, including to future agentic sessions that reasonably treat repo docs as ground truth. Move to `docs/archive/`.
-- **The frozen legacy `/api/lead` route** (referenced in comments at `app/api/enquiries/route.ts:20-25`) — if nothing calls it, delete it rather than carrying it as a comment-documented relic.
+- ✅ **`docs/AUDIT-LEAD-ENGINE.md`** — superseded by current migration state and actively misleading. **Moved to `docs/archive/` with an ARCHIVED banner (PROMPT-12).** Root-level `.patch` / `pre-recovery-*` debris deleted in the same PR.
+- **`/api/lead` is NOT a relic — do not delete it.** Rev-2 of this list said "if nothing calls it, delete it". Recon (PROMPT-12) shows `components/PilotFormClient.tsx:139` — the landing page's Founding Dealer form — POSTs to `/api/lead`. It is the live landing-form endpoint and stays **frozen** with the rest of the landing route group and `lib/security.ts`. The comments at `app/api/enquiries/route.ts:20` reference it as the security pattern that `/api/enquiries` mirrors, which is accurate.
 - **All further marketplace browse/filter richness** — comparison tools, favourites-as-feature, reviews, valuation calculators, finance calculators. None exist today, which is correct. None should be built; they belong to the destination-marketplace model this business is explicitly not pursuing.
 - **The demo environment and its keepalive Worker — on a trigger, not immediately.** It has real pre-sales value through M0–M3. But a second environment with its own deploy pipeline, cron jobs, runbook, and a Worker whose only purpose is preventing a free-tier database from pausing is ongoing load for a solo developer. Set the trigger explicitly: once two real dealers are live in production after M3, decide whether it still earns its keep or whether a recorded walkthrough replaces it.
 

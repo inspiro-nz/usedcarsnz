@@ -74,7 +74,7 @@
 | Demo environment + `keepalive` cron | **Adapt — set a retirement trigger** | Working infrastructure with genuine pre-sales value, but it is a second environment with its own pipeline, cron, runbook, and a Worker whose entire purpose is stopping a free-tier database from pausing. That is real maintenance load for a solo developer with irregular hours. Keep it through M0–M3; set an explicit trigger to re-evaluate once real dealers are live. |
 | E2E + DB-invariant harness | **Keep** | Proportionate, and it protects the one flow that must never silently break. Its one flaw — falling back to `next dev` and thereby masking the ISR bug — should be closed as part of the ISR fix, not by weakening the harness. |
 | Root `.patch` / `pre-recovery-*` files | **Kill** | Recovery debris. Delete. |
-| `docs/AUDIT-LEAD-ENGINE.md` | **Kill (archive)** | Superseded by current migration state; actively misleading to future readers and to future agentic sessions that treat repo docs as ground truth. Move to `docs/archive/`. |
+| `docs/AUDIT-LEAD-ENGINE.md` | **Kill (archive)** — ✅ done, now `docs/archive/AUDIT-LEAD-ENGINE.md` (PROMPT-12) | Superseded by current migration state; actively misleading to future readers and to future agentic sessions that treat repo docs as ground truth. |
 
 ## 2. Gap map
 

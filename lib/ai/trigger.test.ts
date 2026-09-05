@@ -247,3 +247,89 @@ describe("triggerQualification — first touch + safe-path fallback", () => {
     expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "ai_first_response_sent")).toBe(true);
   });
 });
+
+const DEALER_ID = "33333333-3333-3333-3333-333333333333";
+
+function seedEmailEnquiry(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: ENQUIRY_ID,
+    listing_id: null, // listing-less inbound-email lead
+    dealer_id: DEALER_ID,
+    buyer_name: "Mai",
+    buyer_email: "mai@example.com",
+    buyer_phone: null,
+    message: "Hi, keen on this — my budget is about $15,000.",
+    qualification: null,
+    status: "new",
+    source: "email_trademe",
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function seedDealer() {
+  return { id: DEALER_ID, business_name: "Addington Autos", approved_facts: {}, email: "sales@addington.example" };
+}
+
+async function setupEmail(enquiryOverrides: Partial<Record<string, unknown>> = {}) {
+  const { db, rpcCalls, client } = createFakeDb({
+    enquiries: [seedEmailEnquiry(enquiryOverrides)],
+    dealers: [seedDealer()],
+    // deliberately NO listings row — this is the whole point of the fix.
+  });
+  const { supabaseService } = await import("@/lib/supabase/service");
+  (supabaseService as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client);
+  return { db, rpcCalls };
+}
+
+describe("Lane 1 — listing-less inbound-email leads qualify without a listing (§5.3, §7)", () => {
+  it("runs the REAL qualify turn (not the safe handoff), with a listing-less prompt, and captures fields", async () => {
+    const { db, rpcCalls } = await setupEmail();
+    let capturedSystem = "";
+    await setProvider("workers-ai", (opts) => {
+      capturedSystem = opts.system ?? "";
+      return qualifyJson({ reply_text: "Great — what's your rough timeline?", fields: { budget_nzd: 15000 }, next_topic: "timeline" });
+    });
+    const { triggerQualification } = await import("@/lib/ai/trigger");
+    await triggerQualification(ENQUIRY_ID);
+
+    // The real model reply reached the buyer — NOT the safe-handoff template.
+    const aiMsg = db.messages.find((m) => m.sender === "ai");
+    expect(aiMsg?.body).toBe("Great — what's your rough timeline?");
+    // The prompt used the listing-less variant (no vehicle named/guessed).
+    expect(capturedSystem).toContain("do NOT know which specific vehicle");
+    expect(capturedSystem).not.toContain("enquired about:");
+    // Qualification captured + events logged as on the platform path.
+    const enquiry = db.enquiries.find((e) => e.id === ENQUIRY_ID);
+    expect((enquiry?.qualification as { budget_nzd?: number })?.budget_nzd).toBe(15000);
+    expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "qualification_completed")).toBe(true);
+    expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "ai_first_response_sent")).toBe(true);
+  });
+
+  it("guard still fires on a coerced vehicle claim — no vehicle text reaches the buyer (compliance holds without a listing)", async () => {
+    const { db, rpcCalls } = await setupEmail();
+    // A jailbroken model that invents a vehicle claim despite having no listing.
+    await setProvider("anthropic", () =>
+      qualifyJson({ reply_text: "Yes, this car has a brand-new manufacturer warranty and a fresh WOF.", needs_dealer: false }),
+    );
+    const { handleChatTurn } = await import("@/lib/ai/trigger");
+    const turn = await handleChatTurn(ENQUIRY_ID, "Does it have a warranty?");
+
+    expect(turn.guardBlocked).toBe(true);
+    expect(turn.needsDealer).toBe(true);
+    expect(turn.replyText.toLowerCase()).not.toContain("warranty");
+    const aiMsg = db.messages.find((m) => m.sender === "ai");
+    expect(String(aiMsg?.body).toLowerCase()).not.toContain("warranty");
+    expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "guard_blocked")).toBe(true);
+  });
+
+  it("neither a listing NOR a dealer: keeps throwing so the caller's safe-handoff path owns it", async () => {
+    // Production wraps triggerQualification in ctx.waitUntil(...).catch(...) and
+    // POST /api/ai/chat wraps handleChatTurn in try/catch — so this throw is the
+    // sanctioned "nothing to qualify against" signal, not a crash to the buyer.
+    await setupEmail({ dealer_id: null });
+    await setProvider("workers-ai", () => qualifyJson());
+    const { triggerQualification } = await import("@/lib/ai/trigger");
+    await expect(triggerQualification(ENQUIRY_ID)).rejects.toThrow(/neither a listing nor a dealer/);
+  });
+});

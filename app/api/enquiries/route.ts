@@ -5,12 +5,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseService } from "@/lib/supabase/service";
 import { checkRateLimit, getClientIP, honeypotTripped } from "@/lib/security";
 import { verifyTurnstile } from "@/lib/turnstile";
-import { sendEmail } from "@/lib/email";
-import { buildAckEmail } from "@/lib/email/ack-template";
-import { insertOutboxRow } from "@/lib/email/outbox";
-import { emitLeadEvent } from "@/lib/leads/events";
-import { triggerQualification } from "@/lib/ai/trigger";
-import { getClientEnv } from "@/lib/env";
+import { getServerEnv } from "@/lib/env";
+import { runFirstTouch } from "@/lib/enquiries/first-touch";
 import type { ListingRow } from "@/lib/db/types";
 
 /**
@@ -35,7 +31,12 @@ const bodySchema = z.object({
   email: z.string().trim().email().max(200),
   phone: z.string().trim().max(40).optional().or(z.literal("")),
   message: z.string().trim().max(4000).optional().or(z.literal("")),
-  token: z.string().min(1, "Security verification failed"),
+  // Optional at the schema layer: whether a token is REQUIRED depends on
+  // whether Turnstile is actually configured (see the gate below). When the
+  // widget isn't configured — every local dev environment — the client is
+  // designed to submit token-less, so hard-requiring it here made the form
+  // unsubmittable and surfaced a misleading "Security verification failed".
+  token: z.string().optional().default(""),
   website: z.string().optional(), // honeypot
 });
 
@@ -69,9 +70,23 @@ export async function POST(request: NextRequest) {
   }
   const data = parsed.data;
 
-  const turnstileOk = await verifyTurnstile(data.token, ip);
-  if (!turnstileOk) {
-    return NextResponse.json({ error: "Security verification failed. Please try again." }, { status: 400 });
+  // Turnstile gate. Verify when the secret is configured (prod/demo set it via
+  // `wrangler secret`) — an empty or invalid token still 400s there. When it's
+  // NOT configured, skip in non-production so localhost is usable without any
+  // Turnstile setup, but FAIL CLOSED in production so a deploy that lost its
+  // secret can never silently accept unverified submissions.
+  const env = getServerEnv();
+  if (env.TURNSTILE_SECRET_KEY) {
+    const turnstileOk = await verifyTurnstile(data.token, ip);
+    if (!turnstileOk) {
+      return NextResponse.json({ error: "Security verification failed. Please try again." }, { status: 400 });
+    }
+  } else if (env.NEXT_PUBLIC_APP_ENV === "production") {
+    console.error("TURNSTILE_SECRET_KEY is not set in production — rejecting enquiry (fail closed).");
+    return NextResponse.json(
+      { error: "Security verification is temporarily unavailable. Please try again shortly." },
+      { status: 503 },
+    );
   }
 
   const sb = await supabaseServer();
@@ -79,24 +94,31 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await sb.auth.getUser();
 
-  // Insert AS THE CALLER (anon or signed-in) so RLS is the gate — only
-  // ACTIVE listings accept enquiries, and dealer_id is set server-side by
-  // the DB trigger, never from this request.
-  const { data: enquiry, error: insertError } = await sb
-    .from("enquiries")
-    .insert({
-      listing_id: data.listing_id,
-      buyer_user_id: user?.id ?? null,
-      buyer_name: data.name,
-      buyer_email: data.email,
-      buyer_phone: data.phone || null,
-      message: data.message || null,
-      source: "platform_form",
-    })
-    .select("id, created_at")
-    .single<{ id: string; created_at: string }>();
+  const svc = supabaseService();
 
-  if (insertError || !enquiry) {
+  // Insert AS THE CALLER (anon or signed-in) so RLS is the gate — only ACTIVE
+  // listings accept enquiries, and dealer_id is set server-side by the DB
+  // trigger, never from this request.
+  //
+  // We generate the id here and DON'T chain .select() on this client: the anon
+  // role has an INSERT grant but no SELECT on enquiries (leads must never be
+  // publicly readable), so an insert-with-returning fails with "permission
+  // denied for table enquiries" (42501) for logged-out buyers — the exact wall
+  // that made "No account needed" enquiries impossible. The authoritative
+  // created_at is read back via the service client, which bypasses RLS/grants.
+  const enquiryId = crypto.randomUUID();
+  const { error: insertError } = await sb.from("enquiries").insert({
+    id: enquiryId,
+    listing_id: data.listing_id,
+    buyer_user_id: user?.id ?? null,
+    buyer_name: data.name,
+    buyer_email: data.email,
+    buyer_phone: data.phone || null,
+    message: data.message || null,
+    source: "platform_form",
+  });
+
+  if (insertError) {
     return NextResponse.json(
       { error: "That enquiry couldn't be sent — the listing may no longer be active." },
       { status: 400 },
@@ -106,7 +128,12 @@ export async function POST(request: NextRequest) {
   // enquiry_received is auto-logged by the enquiries_logged DB trigger — not
   // re-emitted here.
 
-  const svc = supabaseService();
+  const { data: created } = await svc
+    .from("enquiries")
+    .select("created_at")
+    .eq("id", enquiryId)
+    .single<{ created_at: string }>();
+  const createdAt = created?.created_at ?? new Date().toISOString();
   const { data: listing } = await svc
     .from("listings")
     .select("*")
@@ -127,61 +154,35 @@ export async function POST(request: NextRequest) {
     dealerLogoUrl = dealer?.logo_url ?? null;
   }
 
-  const env = getClientEnv();
-  const threadUrl = `${env.NEXT_PUBLIC_SITE_URL}/thread/${enquiry.id}`;
-  const ack = buildAckEmail({
-    buyerName: data.name,
-    dealerName,
-    dealerLogoUrl,
-    threadUrl,
-  });
-
-  const sendResult = await sendEmail({
-    to: data.email,
-    subject: ack.subject,
-    text: ack.text,
-    html: ack.html,
-    replyTo: dealerEmail ?? undefined,
-  });
-
-  if (sendResult.sent) {
-    await svc.from("messages").insert({
-      enquiry_id: enquiry.id,
-      sender: "ai",
-      body: ack.text,
-    });
-    const msSinceReceived = Date.now() - new Date(enquiry.created_at).getTime();
-    await emitLeadEvent({
-      leadId: enquiry.id,
-      eventType: "ack_sent",
-      actor: "ai",
-      metadata: { channel: "email", template: "first-touch-v1", ms_since_received: msSinceReceived },
-    });
-  } else {
-    // Buyer still gets a success response — the SLA is about telling them
-    // "we've got this", not about Resend's uptime. No ack_sent is emitted
-    // until lib/email/outbox.ts's sweep actually sends it.
-    await insertOutboxRow({
-      enquiryId: enquiry.id,
-      to: data.email,
-      replyTo: dealerEmail ?? undefined,
-      subject: ack.subject,
-      text: ack.text,
-      html: ack.html,
-      lastError: sendResult.error ?? "unknown error",
-    });
+  // The templated ack + qualification hand-off is the SHARED first touch,
+  // identical to the inbound-email lane (lib/enquiries/first-touch.ts). Awaited
+  // so the ack send/queue completes before we respond; qualification is
+  // scheduled via ctx.waitUntil inside it.
+  //
+  // getCloudflareContext only exists under the OpenNext dev proxy or a real
+  // Cloudflare deploy. In plain Node (CI E2E, `next start` off-Cloudflare, a
+  // dev machine without wrangler auth) it THROWS — which used to 500 this
+  // route AFTER the enquiry row was committed: buyer shown an error, no ack
+  // pipeline, lead silently created. Degrade to fire-and-forget instead; the
+  // enquiry intake must never depend on the Cloudflare runtime being present.
+  let waitUntil: (p: Promise<unknown>) => void = (p) => void p.catch(() => {});
+  try {
+    const { ctx } = await getCloudflareContext({ async: true });
+    waitUntil = (p) => ctx.waitUntil(p);
+  } catch {
+    console.warn("[enquiries] Cloudflare context unavailable — scheduling first touch without waitUntil.");
   }
-
-  const { ctx } = await getCloudflareContext({ async: true });
-  ctx.waitUntil(
-    triggerQualification(enquiry.id).catch((err) => {
-      console.error(`[ai:trigger] triggerQualification failed for ${enquiry.id}:`, err);
-    }),
-  );
+  await runFirstTouch({
+    enquiry: { id: enquiryId, created_at: createdAt },
+    buyer: { name: data.name, email: data.email },
+    dealer: { name: dealerName, email: dealerEmail, logoUrl: dealerLogoUrl },
+    channel: "email",
+    waitUntil,
+  });
 
   return NextResponse.json({
     ok: true,
-    enquiryId: enquiry.id,
-    respondedInMs: Date.now() - new Date(enquiry.created_at).getTime(),
+    enquiryId,
+    respondedInMs: Date.now() - new Date(createdAt).getTime(),
   });
 }

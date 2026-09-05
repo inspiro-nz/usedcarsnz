@@ -38,7 +38,7 @@
 1. **`docs/form-security.md`** (1,500+ lines)
    - Complete documentation of all security features
    - Environment variable setup guide
-   - Deployment instructions for Cloudflare Pages
+   - Deployment instructions for Cloudflare Workers (via `@opennextjs/cloudflare`)
    - Monitoring & logging guidelines
    - Troubleshooting section
    - Upgrade guide for Cloudflare KV production deployment
@@ -118,16 +118,16 @@ RESEND_FROM_EMAIL="UsedCarsNZ <no-reply@usedcarsnz.co.nz>"
 LEAD_EMAIL=leads@usedcarsnz.co.nz
 ```
 
-### Production (Cloudflare Pages)
+### Production (Cloudflare Workers)
 
-Set in **Cloudflare Dashboard** → **Pages** → **usedcarsnz** → **Settings** → **Environment Variables**
+The app deploys as a Cloudflare **Worker** via `@opennextjs/cloudflare` — not Pages.
 
-**Encrypted (Secrets)**:
+**Secrets** (set once via `wrangler secret put <NAME>`; they persist across deploys):
 - `TURNSTILE_SECRET_KEY`
 - `RESEND_API_KEY`
 
-**Plain (Public)**:
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+**Plain vars** (in `wrangler.jsonc` `vars`, or baked at build time for `NEXT_PUBLIC_*`):
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (build-time — inlined by the Next.js build)
 - `RESEND_FROM_EMAIL`
 - `LEAD_EMAIL`
 
@@ -153,11 +153,10 @@ cp .env.example .env.local
 # Edit .env.local with your Turnstile keys and Resend API key
 ```
 
-**Cloudflare Pages**:
-1. Go to Cloudflare Dashboard
-2. Navigate to **Pages** → **usedcarsnz** → **Settings** → **Environment Variables**
-3. Add all required variables (see table above)
-4. Mark secrets with **Encrypted** toggle
+**Cloudflare Workers**:
+1. Set each secret once: `npx wrangler secret put TURNSTILE_SECRET_KEY` (repeat per secret)
+2. Non-secret vars live in `wrangler.jsonc` `vars`; never set vars in the dashboard — deploys overwrite them
+3. `NEXT_PUBLIC_*` values are inlined at build time (see `deploy-demo.yml` for the demo pattern)
 
 ### 3. Install Dependencies
 
@@ -178,8 +177,7 @@ npm run dev
 ### 5. Build and Deploy
 
 ```bash
-npm run build
-wrangler pages deploy
+npm run deploy   # OpenNext build + wrangler deploy (Cloudflare Workers)
 ```
 
 ---
@@ -196,7 +194,7 @@ wrangler pages deploy
 - [ ] **Honeypot**: Filling hidden field silently rejects
 - [ ] **Validation**: Invalid email/name rejected with error
 - [ ] **Error Recovery**: Widget resets after failed submission
-- [ ] **Production Deploy**: Cloudflare Pages deployment succeeds
+- [ ] **Production Deploy**: Cloudflare Workers deployment succeeds (`npm run deploy`)
 - [ ] **Logs**: Check Cloudflare Workers Real-time Logs for errors
 
 ---
@@ -323,8 +321,8 @@ window.turnstile.render('#turnstile-widget', {
 ## 💡 Production Recommendations
 
 1. ✅ **Secrets**: Use Cloudflare secret variables (done)
-2. ✅ **HTTPS**: Cloudflare Pages provides SSL by default
-3. ✅ **Headers**: Security headers already set by Cloudflare Pages
+2. ✅ **HTTPS**: Cloudflare provides SSL at the zone by default
+3. ✅ **Headers**: Security headers set at the zone / in `next.config.js` `headers()`
 4. ✅ **Rate Limiting**: IP-based implementation ready
 5. 📋 **Upgrade Candidate**: Cloudflare KV for multi-region consistency
 6. 📋 **Monitoring**: Set up Cloudflare Workers Real-time Logs dashboard

@@ -12,7 +12,14 @@ export const QUALIFY_PROMPT_VERSION = "qualify.v1";
 
 export interface QualifySystemPromptInput {
   dealerName: string | null;
-  listingTitle: string;
+  /**
+   * The vehicle the buyer enquired about, when we have a listing for it.
+   * NULL for inbound-email leads whose vehicle lives off-platform (e.g. Trade
+   * Me): we have NO listing, so the prompt must not name/guess a vehicle — it
+   * qualifies on the non-vehicle topics and defers vehicle specifics to the
+   * dealer, which is strictly SAFER (no vehicle to misrepresent). §7.
+   */
+  listingTitle: string | null;
   approvedFacts: ApprovedFacts;
   qualificationSoFar: Qualification | null;
 }
@@ -22,8 +29,20 @@ export function buildQualifySystemPrompt(input: QualifySystemPromptInput): strin
   const facts = formatApprovedFacts(input.approvedFacts);
   const known = formatKnownQualification(input.qualificationSoFar);
 
+  // With a listing, the opening line is UNCHANGED. Without one, the opening
+  // line instead tells the model it does NOT know the vehicle and must never
+  // name, guess, or describe one — the HARD RULES below still apply verbatim.
+  const intro = input.listingTitle
+    ? `You are the AI assistant for ${seller} on UsedCarsNZ, chatting with a buyer who enquired about: ${input.listingTitle}.`
+    : [
+        `You are the AI assistant for ${seller} on UsedCarsNZ, chatting with a buyer who sent in an enquiry by email.`,
+        `You do NOT know which specific vehicle they are asking about — there is no listing for it on hand.`,
+        `NEVER name, guess, describe, or imply any specific vehicle, make, model, year, price, or spec.`,
+        `If the buyer refers to a specific vehicle, treat it exactly like any other vehicle-specific question: defer it to the dealer (set needs_dealer=true).`,
+      ].join("\n");
+
   return [
-    `You are the AI assistant for ${seller} on UsedCarsNZ, chatting with a buyer who enquired about: ${input.listingTitle}.`,
+    intro,
     ``,
     `YOUR ONLY JOB is to have a short, friendly qualification conversation and`,
     `collect: budget, finance interest, trade-in, timeline, location, and buying`,

@@ -1,55 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UsedCarsNZ
 
-## Getting Started
+Dealer-first, AI-native used-car **co-listing** platform for New Zealand — an
+[Inspiral NZ](https://usedcarsnz.co.nz) venture. Dealers keep their Trade Me
+listing and add UsedCarsNZ; every enquiry gets a templated (no-LLM) first
+response in under 60 seconds, is AI-qualified, and is handed to the dealer as a
+warm lead — with the conversion lift measured from an immutable event log and
+published.
 
-First, run the development server:
+**Start here:**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- `docs/UsedCarsNZ_Requirements_Strategy_v5_7.md` — strategy, compliance
+  boundaries (§7), critical path (§14).
+- `docs/architecture.md` — system, AI-lane, environment and cron diagrams.
+- `docs/roadmap.md` — the current 5/30/90-day plan with go/kill gates.
+- `DEMO_RUNBOOK.md` — the dealer-meeting rehearsal script.
+- `docs/infra/demo-standup.md` — one-time demo environment stand-up.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind v4 ·
+**Cloudflare Workers** via `@opennextjs/cloudflare` (not Pages, not Vercel) ·
+Supabase (Postgres, Auth, Storage, RLS) · Workers AI (default) with Anthropic
+as escalation · Resend (outbound email) · Cloudflare Email Routing (inbound
+leads) · Turnstile.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local development
 
-## Lead capture setup
-
-This app sends Founding Dealer Program form submissions by email using Resend. To enable it, add the following environment variables:
-
-```bash
-RESEND_API_KEY=your_resend_api_key
-RESEND_FROM_EMAIL="UsedCarsNZ <no-reply@usedcarsnz.co.nz>"
-LEAD_EMAIL=inspiroanalytics@gmail.com
-```
-
-Then install dependencies and run the project:
+Local **is** the dev environment (Supabase free tier caps at two cloud
+projects: prod + demo). Requires Docker for the local Supabase stack.
 
 ```bash
+npx supabase start   # local Postgres/Auth/Storage at http://127.0.0.1:54321
 npm install
-npm run dev
+npm run dev          # http://localhost:3000
 ```
 
-If you deploy on Vercel, add `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `LEAD_EMAIL` to your project environment variables.
+`.env.local` must point at the **local** stack — never at a cloud project.
+Verify before any `supabase db reset` (Strategy §10.1 safety rule).
 
-## Learn More
+Verification gate (run before any PR):
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx tsc --noEmit
+npm run lint
+npx vitest run
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Demo** (`demo.usedcarsnz.co.nz`, Cloudflare Access-gated): GitHub →
+  Actions → **Promote demo** → Run workflow. This points the `demo` branch at
+  `develop` and dispatches `deploy-demo.yml` (app worker + three cron workers).
+- **Production** (`usedcarsnz.co.nz`): no CI deploy by design — manual
+  `npm run deploy` from `main` only.
 
-## Deploy on Vercel
+Secrets are set once via `wrangler secret put` and persist across deploys — see
+`docs/infra/demo-standup.md` for the complete list (note: `RESEND_API_KEY` is
+required for the acknowledgment email to actually send).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Repo conventions
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- PR-only into `develop`; `main` is production.
+- Migrations are additive-only; `lead_events` is append-only by DB trigger.
+- Frozen paths (landing route group, `app/api/lead/route.ts`,
+  `lib/security.ts`) are import-only.
+- The §7 compliance envelope (two-lane AI, approve-to-send gate) is enforced in
+  code and tests — see `docs/architecture.md`.

@@ -37,12 +37,26 @@ const clientSchema = z.object({
 const AI_PROVIDERS = ["workers-ai", "anthropic"] as const;
 
 const serverSchema = z.object({
-  // Server-only secrets.
-  SUPABASE_SECRET_KEY: z.string().min(1).optional().default(""),
-  RESEND_API_KEY: z.string().min(1).optional().default(""),
-  OPENAI_API_KEY: z.string().min(1).optional().default(""),
+  // Server-only secrets. Each is OPTIONAL with an empty-string default so a
+  // credential-less local env stays green (the consumers degrade gracefully:
+  // sendEmail logs instead of sending, verifyTurnstile is skipped in non-prod,
+  // etc.). NOTE: do NOT add `.min(1)` here — `z.string().min(1).optional()
+  // .default("")` fails on an ABSENT var, because `.default("")` supplies ""
+  // which then fails `.min(1)`, turning an "optional" secret into a required
+  // one and 500-ing every server path that reads it in local dev.
+  SUPABASE_SECRET_KEY: z.string().optional().default(""),
+  RESEND_API_KEY: z.string().optional().default(""),
+  OPENAI_API_KEY: z.string().optional().default(""),
   // Verifies NEXT_PUBLIC_TURNSTILE_SITE_KEY tokens for POST /api/enquiries.
-  TURNSTILE_SECRET_KEY: z.string().min(1).optional().default(""),
+  TURNSTILE_SECRET_KEY: z.string().optional().default(""),
+
+  // Inbound-email lane (§5.3). Shared HMAC secret between the email-inbound
+  // Worker (which signs) and POST /api/inbound/email (which verifies). Optional
+  // here so `next build` stays green with an empty env, but the endpoint FAILS
+  // CLOSED (503) when it's unset — it never processes an unauthenticated POST.
+  INBOUND_HMAC_SECRET: z.string().optional().default(""),
+  // Where unknown-alias / system-mail notifications go. Empty => log only.
+  FOUNDER_EMAIL: z.string().email().optional().or(z.literal("")).default(""),
 
   // Bounded AI layer (strategy §7) — provider/model are per-lane so either
   // lane can be flipped to the Anthropic escalation path independently.
@@ -51,6 +65,14 @@ const serverSchema = z.object({
   AI_MODEL_QUALIFY: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
   AI_MODEL_DRAFT: z.string().min(1).default("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+
+  // Set ONLY in the demo environment. When truthy ("1"/"true"), every metric
+  // surface (dealer dashboard + public aggregate page) renders a visible "Sample
+  // data" badge, so seeded numbers can never be mistaken for measured results
+  // (§9.2 honesty). The seed/reset scripts also gate on the environment being
+  // demo/local. Interpreted by isSampleData() in lib/metrics-views.ts; kept a
+  // raw string here so the env's inferred type stays a plain record.
+  DEMO_SAMPLE_DATA: z.string().optional(),
 });
 
 export type ClientEnv = z.infer<typeof clientSchema>;
@@ -107,11 +129,14 @@ function readServer(): ServerEnv {
     SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    INBOUND_HMAC_SECRET: process.env.INBOUND_HMAC_SECRET,
+    FOUNDER_EMAIL: process.env.FOUNDER_EMAIL,
     AI_PROVIDER_QUALIFY: process.env.AI_PROVIDER_QUALIFY,
     AI_PROVIDER_DRAFT: process.env.AI_PROVIDER_DRAFT,
     AI_MODEL_QUALIFY: process.env.AI_MODEL_QUALIFY,
     AI_MODEL_DRAFT: process.env.AI_MODEL_DRAFT,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    DEMO_SAMPLE_DATA: process.env.DEMO_SAMPLE_DATA,
   };
   if (skipValidation) return { ...client, ...raw } as ServerEnv;
 

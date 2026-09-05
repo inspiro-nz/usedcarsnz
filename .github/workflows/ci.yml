@@ -1,0 +1,44 @@
+name: CI
+
+# Runs the same gate developers run locally, on every push and on PRs into develop.
+# Browser E2E (Playwright) is NOT run here — it needs a test Supabase project and is
+# local-only for now (see docs/testing.md).
+on:
+  push:
+  pull_request:
+    branches: [develop]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches next@16.2's engines floor ("node": ">=20.9.0"). No .nvmrc/engines
+          # in package.json, so this is the source of truth for the CI Node version.
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Build
+        # `next build` stays green against an empty environment: lib/env.ts validates
+        # lazily (never at build/import time) and the marketplace routes are all
+        # server-rendered on demand, so no NEXT_PUBLIC_* value is required to build.
+        # If a future build step needs them, add repo secrets and reference them here,
+        # e.g. NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}.
+        run: npm run build

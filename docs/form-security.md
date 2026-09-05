@@ -157,8 +157,8 @@ const RATE_LIMIT_MAX_REQUESTS = 5; // Per IP per hour
   3. `X-Real-IP` (nginx/reverse proxy)
   4. Falls back to `127.0.0.1` if none found
 
-**Cloudflare Pages Limitation**:
-- Current implementation uses in-memory Map per function invocation
+**Cloudflare Workers limitation**:
+- Current implementation uses in-memory Map per Worker isolate
 - Works for single-region deployments
 - For multi-region Cloudflare deployment, upgrade to Cloudflare KV
 
@@ -214,20 +214,24 @@ npm run dev
 
 3. Open http://localhost:3000 and test the form
 
-### Cloudflare Pages Deployment
+### Cloudflare Workers Deployment
 
-1. Add secrets to Cloudflare:
-   - Go to **Workers & Pages** > **usedcarsnz** > **Settings** > **Environment Variables**
-   - Add all required environment variables with `Encrypted` type for secrets
+The app deploys as a Cloudflare **Worker** via `@opennextjs/cloudflare` — not Pages.
 
-2. Add `NEXT_PUBLIC_*` variables as regular environment variables:
-   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (public, can be plain environment variable)
+1. Set secrets once via the CLI (they persist across deploys):
+```bash
+npx wrangler secret put TURNSTILE_SECRET_KEY
+npx wrangler secret put RESEND_API_KEY
+```
+
+2. `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is inlined at **build time** by Next.js —
+   supply it in the build environment (see `deploy-demo.yml` for the demo
+   pattern). Non-secret runtime vars live in `wrangler.jsonc` `vars` — never
+   set vars in the dashboard; deploys overwrite them.
 
 3. Deploy:
 ```bash
-npm run build
-npm install -g @cloudflare/wrangler
-wrangler pages deploy
+npm run deploy   # OpenNext build + wrangler deploy
 ```
 
 4. Verify Turnstile in production:
@@ -256,7 +260,7 @@ Each submission includes:
 Monitor in Cloudflare:
 - **Analytics** > **Turnstile** to see verification success/failure rates
 - **Workers** > **Real-time Logs** to see function execution errors
-- **Pages** > **Analytics** for page traffic and performance
+- **Workers & Pages** > the `usedcarsnz` Worker > **Metrics** for traffic and performance
 
 ## Upgrade Guide: Adding Cloudflare KV for Rate Limiting
 
@@ -327,7 +331,7 @@ export async function POST(request: NextRequest) {
 - [ ] Success and error messages display correctly
 - [ ] Email formatting looks good in client inbox
 - [ ] Logs monitored for errors and abuse attempts
-- [ ] HTTPS enabled (Cloudflare Pages default)
+- [ ] HTTPS enabled (Cloudflare zone default)
 
 ## Troubleshooting
 

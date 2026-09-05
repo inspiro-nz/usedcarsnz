@@ -12,6 +12,13 @@ export async function sendEmail(input: {
   text: string;
   html?: string;
   replyTo?: string;
+  /**
+   * Overrides the default From. Used by the inbound-email lane to send the ack
+   * as "{Dealer} via UsedCarsNZ <no-reply@usedcarsnz.co.nz>" (§5.3). Must stay
+   * on the usedcarsnz.co.nz sending domain — Resend/DKIM only sign that domain.
+   * Omitted => the platform default below, unchanged for every existing caller.
+   */
+  from?: string;
 }): Promise<{ sent: boolean; error?: string }> {
   const env = getServerEnv();
   if (!env.RESEND_API_KEY) {
@@ -25,7 +32,7 @@ export async function sendEmail(input: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "UsedCarsNZ <no-reply@usedcarsnz.co.nz>",
+      from: input.from ?? "UsedCarsNZ <no-reply@usedcarsnz.co.nz>",
       to: [input.to],
       subject: input.subject,
       text: input.text,

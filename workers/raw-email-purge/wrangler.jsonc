@@ -1,0 +1,26 @@
+{
+  // Standalone Cron Worker: daily purge of inbound raw MIME older than 30 days,
+  // by POSTing the app's /api/cron/purge-raw-email. Separate Worker because the
+  // OpenNext app worker has no `scheduled` handler. See src/index.ts.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "usedcarsnz-raw-email-purge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // Daily at 13:30 UTC — offset from keepalive (12:00) and any other job.
+  "triggers": {
+    "crons": ["30 13 * * *"]
+  },
+  "vars": {
+    // The protected app endpoint. Defaults to PROD (not behind Access). For a
+    // demo target behind Access, override this and set the CF_ACCESS_* secrets.
+    "TARGET_URL": "https://usedcarsnz.co.nz/api/cron/purge-raw-email"
+  }
+  // Secrets — never here. Set with `wrangler secret put <NAME>` in this dir:
+  //   CRON_SECRET               (shared with the app's CRON_SECRET env)
+  //   CF_ACCESS_CLIENT_ID       (only if TARGET_URL is behind Cloudflare Access)
+  //   CF_ACCESS_CLIENT_SECRET   (only if TARGET_URL is behind Cloudflare Access)
+}

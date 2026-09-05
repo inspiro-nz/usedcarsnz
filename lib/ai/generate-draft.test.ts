@@ -144,3 +144,75 @@ describe.each(BOTH_ADAPTERS)("Lane 2 (generateDraft) — adapter=%s", (adapterNa
     expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "draft_created")).toBe(false);
   });
 });
+
+async function setupEmail(opts: { message?: string; qualification?: Record<string, unknown> | null } = {}) {
+  const { db, rpcCalls, client } = createFakeDb({
+    enquiries: [
+      {
+        id: ENQUIRY_ID,
+        listing_id: null, // listing-less inbound-email lead
+        dealer_id: DEALER_ID, // set directly by set_enquiry_denorm (Prompt 5)
+        buyer_name: "Jamie",
+        message: opts.message ?? "Hi, still available?",
+        qualification: opts.qualification ?? null,
+      },
+    ],
+    dealers: [{ id: DEALER_ID, business_name: "Newmarket Motors", email: "sales@newmarketmotors.example" }],
+    messages: [],
+    // deliberately NO listings row.
+  });
+  const { supabaseService } = await import("@/lib/supabase/service");
+  (supabaseService as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client);
+  return { db, rpcCalls };
+}
+
+describe("Lane 2 — listing-less inbound-email leads draft without a listing (§5.3, §7)", () => {
+  it("generates a REAL draft (pending + draft_created) with a listing-less prompt that names no vehicle", async () => {
+    const { db, rpcCalls } = await setupEmail();
+    let capturedPrompt = "";
+    await setProvider("workers-ai", (opts) => {
+      capturedPrompt = opts.system;
+      return JSON.stringify({ draft_text: "Hi Jamie — happy to help. [DEALER TO CONFIRM: which vehicle you're asking about]" });
+    });
+    const { generateDraft } = await import("@/lib/ai/generate-draft");
+    await generateDraft(ENQUIRY_ID);
+
+    const draft = db.ai_drafts[0];
+    expect(draft.status).toBe("pending");
+    expect(rpcCalls.some((c: RpcCall) => c.args.p_event_type === "draft_created")).toBe(true);
+    // Listing-less prompt: no facts on file, no fabricated vehicle facts.
+    expect(capturedPrompt).toContain("(no listing facts on file)");
+    expect(capturedPrompt).not.toMatch(/-\s*(Make|Model|Year):/);
+    expect(capturedPrompt).toContain("DEALER TO CONFIRM");
+  });
+
+  it("generation-failure fallback: safe template, generation_failed, no throw on null listing, invents no vehicle", async () => {
+    const { db } = await setupEmail();
+    const { sendEmail } = await import("@/lib/email");
+    await setProvider("anthropic", () => "not valid json");
+    const { generateDraft } = await import("@/lib/ai/generate-draft");
+    await expect(generateDraft(ENQUIRY_ID)).resolves.toBeUndefined();
+
+    const draft = db.ai_drafts[0];
+    expect(draft.status).toBe("generation_failed");
+    const text = String(draft.draft_text);
+    // Uses a confirm marker instead of naming a vehicle it has no data for.
+    expect(text).toContain("[DEALER TO CONFIRM");
+    // No fabricated vehicle name, and no null/undefined leakage from the null listing.
+    expect(text).not.toMatch(/undefined|null|Toyota|Corolla/);
+    expect(sendEmail).toHaveBeenCalled();
+  });
+
+  it("neither a listing NOR a dealer: keeps throwing so the swallowing .catch owns it", async () => {
+    const { client } = createFakeDb({
+      enquiries: [{ id: ENQUIRY_ID, listing_id: null, dealer_id: null, buyer_name: "Jamie", message: "hi", qualification: null }],
+      dealers: [],
+      messages: [],
+    });
+    const { supabaseService } = await import("@/lib/supabase/service");
+    (supabaseService as unknown as ReturnType<typeof vi.fn>).mockReturnValue(client);
+    await setProvider("workers-ai", () => JSON.stringify({ draft_text: "x" }));
+    const { generateDraft } = await import("@/lib/ai/generate-draft");
+    await expect(generateDraft(ENQUIRY_ID)).rejects.toThrow(/neither a listing nor a dealer/);
+  });
+});

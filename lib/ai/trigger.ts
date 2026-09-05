@@ -41,7 +41,8 @@ export interface ChatTurnResult {
 
 interface TurnContext {
   enquiry: EnquiryRow;
-  listing: ListingRow;
+  /** NULL for listing-less inbound-email leads (§5.3) — dealer comes from the enquiry instead. */
+  listing: ListingRow | null;
   dealer: DealerRow | null;
 }
 
@@ -67,17 +68,33 @@ async function loadContext(
     .single<EnquiryRow>();
   if (eErr || !enquiry) throw new Error(`enquiry not found: ${eErr?.message}`);
 
-  const { data: listing, error: lErr } = await svc
-    .from("listings")
-    .select("*")
-    .eq("id", enquiry.listing_id)
-    .single<ListingRow>();
-  if (lErr || !listing) throw new Error(`listing not found: ${lErr?.message}`);
-
+  let listing: ListingRow | null = null;
   let dealer: DealerRow | null = null;
-  if (listing.dealer_id) {
-    const { data } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
-    dealer = data ?? null;
+
+  if (enquiry.listing_id) {
+    // Platform-form lead: the listing is authoritative, and the dealer is
+    // derived from it (unchanged path).
+    const { data, error: lErr } = await svc
+      .from("listings")
+      .select("*")
+      .eq("id", enquiry.listing_id)
+      .single<ListingRow>();
+    if (lErr || !data) throw new Error(`listing not found: ${lErr?.message}`);
+    listing = data;
+    if (listing.dealer_id) {
+      const { data: d } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
+      dealer = d ?? null;
+    }
+  } else if (enquiry.dealer_id) {
+    // Listing-less inbound-email lead (§5.3): alias-routed straight to a dealer.
+    // There is no vehicle to load — qualify on the non-vehicle topics using the
+    // dealer context that set_enquiry_denorm put on the enquiry.
+    const { data: d } = await svc.from("dealers").select("*").eq("id", enquiry.dealer_id).single<DealerRow>();
+    dealer = d ?? null;
+  } else {
+    // Neither a listing nor a dealer: there is genuinely nothing to qualify
+    // against. Throw so the caller's safe-handoff path owns it.
+    throw new Error(`enquiry ${enquiryId} has neither a listing nor a dealer`);
   }
 
   return { enquiry, listing, dealer };
@@ -93,7 +110,7 @@ async function runQualifyTurn(ctx: TurnContext, buyerMessage: string): Promise<T
     const provider = getProvider("qualify");
     const system = buildQualifySystemPrompt({
       dealerName: ctx.dealer?.business_name ?? null,
-      listingTitle: listingTitle(ctx.listing),
+      listingTitle: ctx.listing ? listingTitle(ctx.listing) : null,
       approvedFacts: ctx.dealer?.approved_facts ?? {},
       qualificationSoFar: ctx.enquiry.qualification,
     });

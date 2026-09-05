@@ -454,7 +454,7 @@ Founder/operator. Dealer approval queue, listing moderation, user management, pl
  
 # 10. Technical Architecture (As Built — Verified 12 July 2026)
  
-*Corrected against a direct code audit of `develop`, not self-report. `docs/AUDIT-LEAD-ENGINE.md`, `docs/infra/demo-standup.md` and `docs/infra/email-routing.md` in the repo are the canonical detail.*
+*Corrected against a direct code audit of `develop`, not self-report. `docs/archive/AUDIT-LEAD-ENGINE.md` (archived; superseded), `docs/infra/demo-standup.md` and `docs/infra/email-routing.md` in the repo are the canonical detail.*
  
 | **Layer** | **Technology (verified in code)** |
 | --- | --- |
@@ -600,7 +600,7 @@ Two hard preconditions before charging anything: (1) the published conversion me
  
 | **Prompt** | **Delivers** | **Status** |
 | --- | --- | --- |
-| **0** | Repo audit | ✅ `docs/AUDIT-LEAD-ENGINE.md` |
+| **0** | Repo audit | ✅ `docs/archive/AUDIT-LEAD-ENGINE.md` (archived 2026-09-05; superseded by `docs/review/CURRENT_STATE.md`) |
 | **1** | Immutable `lead_events`, `ai_drafts`, `messages`, `dealer_aliases`, event-writer lib | ✅ Complete |
 | **2** | Enquiry intake + sub-60s templated ack, `email_outbox` | ✅ Complete |
 | **3** | AI service: both lanes, two-adapter provider, `guard.ts`, versioned prompts, red-team suite | ✅ Complete (**exceeds spec** — mock + Ollama test adapters added) |

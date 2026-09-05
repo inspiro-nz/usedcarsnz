@@ -94,6 +94,21 @@ async function ensureDealerFixture(ownerId: string, ownerEmail: string): Promise
   if (profile.error) fail(`dealer profile: ${profile.error.message}`);
 
   const dealerId = e2eId("dealer");
+
+  // Ownership must follow the CURRENT env user. The row has a deterministic id,
+  // so an `ignoreDuplicates` upsert would leave it owned by whoever ran this
+  // first — and a later E2E_DEALER_EMAIL would sign in as a plain buyer and
+  // land on /account instead of /dealer. Look up the previous owner so we can
+  // say when ownership moved, then upsert WITHOUT ignoreDuplicates so the
+  // conflict path updates owner_user_id (and re-asserts the fixture's values).
+  const previous = await admin
+    .from("dealers")
+    .select("owner_user_id")
+    .eq("id", dealerId)
+    .maybeSingle();
+  if (previous.error) fail(`dealer lookup: ${previous.error.message}`);
+  const previousOwner = previous.data?.owner_user_id ?? null;
+
   const dealer = await admin.from("dealers").upsert(
     {
       id: dealerId,
@@ -105,9 +120,14 @@ async function ensureDealerFixture(ownerId: string, ownerEmail: string): Promise
       status: "approved", // service role is trusted by guard_dealer_row
       verified: true,
     },
-    { onConflict: "id", ignoreDuplicates: true },
+    { onConflict: "id" },
   );
   if (dealer.error) fail(`dealer row: ${dealer.error.message}`);
+  if (previousOwner && previousOwner !== ownerId) {
+    console.log(
+      `ensure-e2e-user: dealer fixture ownership REASSIGNED ${previousOwner} -> ${ownerId} (${ownerEmail}).`,
+    );
+  }
 
   const listing = await admin.from("listings").upsert(
     {

@@ -28,7 +28,7 @@ This prompt was produced from a sceptical external review (19 July 2026) that ve
 ## Task 0 — Recon (read before any edit)
 
 Read, in this order:
-`docs/UsedCarsNZ_Requirements_Strategy_v5_6.md`, `docs/infra/demo-standup.md`, `docs/infra/cron-schedules.md`, `docs/infra/email-routing.md`, `docs/LOOSE-ENDS.md`, `docs/roadmap.md`, `docs/dealer-validation-kit.md`, `docs/dealer-interviews.md`, `docs/dealer-onboarding-email.md`, `docs/PRD_v5.1.md`, `docs/marketplace-integration.md`, `docs/AUDIT-LEAD-ENGINE.md`, `DEMO_RUNBOOK.md`, `README.md`, `.github/workflows/deploy-demo.yml`, all four `workers/*/wrangler.jsonc`, `lib/email.ts` (header comment only), `docs/state fo play v2`.
+`docs/UsedCarsNZ_Requirements_Strategy_v5_6.md`, `docs/infra/demo-standup.md`, `docs/infra/cron-schedules.md`, `docs/infra/email-routing.md`, `docs/LOOSE-ENDS.md`, `docs/roadmap.md`, `docs/dealer-validation-kit.md`, `docs/dealer-interviews.md`, `docs/dealer-onboarding-email.md`, `docs/PRD_v5.1.md`, `docs/marketplace-integration.md`, `docs/AUDIT-LEAD-ENGINE.md` (since moved to `docs/archive/`), `DEMO_RUNBOOK.md`, `README.md`, `.github/workflows/deploy-demo.yml`, all four `workers/*/wrangler.jsonc`, `lib/email.ts` (header comment only), `docs/state fo play v2`.
 
 Then confirm ground truth with:
 

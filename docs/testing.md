@@ -109,11 +109,13 @@ vars are absent.
    Run it again any time — after every `supabase db reset` in particular,
    which wipes the user and otherwise makes the sign-in spec fail with
    "Invalid login credentials" for an environmental reason, not a code one.
-   Known gap: the dealer fixture's `dealers` row is upserted with
-   `ignoreDuplicates`, so if `E2E_DEALER_EMAIL` changes between runs the
-   dealership keeps its *old* owner and the dealer sign-in / money-shot specs
-   land on `/account` instead of `/dealer`. `supabase db reset` (then
-   `e2e:setup`) clears it; CI always starts from a fresh stack.
+   The dealer fixture's `dealers` row follows the **current**
+   `E2E_DEALER_EMAIL`: the upsert updates `owner_user_id` on conflict, so
+   changing the email between runs re-points the dealership at the new user
+   and the script prints a one-line `ownership REASSIGNED <old> -> <new>`
+   notice when it does (PROMPT-12; previously the row used `ignoreDuplicates`
+   and silently kept its old owner, sending the money-shot dealer to
+   `/account`). No `db reset` is needed to switch dealer users.
    (`scripts/ensure-e2e-user.ts`; it creates the user auto-confirmed, or
    re-syncs the password to the env value if the user already exists.)
 

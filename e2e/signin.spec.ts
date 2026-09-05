@@ -66,6 +66,17 @@ test.describe("sign-in", () => {
     // heading and the buyer-home "Your enquiries" section.
     await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your enquiries" })).toBeVisible();
+
+    // Header upgrade (PROMPT-11): the marketplace header is a static shell that
+    // learns the viewer client-side via /api/viewer. Sign-in is a soft
+    // navigation, so this proves the sliver re-fetches on route change and a
+    // signed-in buyer sees their nav — not a stale "Sign in".
+    const header = page.locator("header");
+    await expect(header.locator("[data-auth-state]")).toHaveAttribute("data-auth-state", "signed-in");
+    await expect(header.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(header.getByRole("link", { name: "My account" })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Sign in" })).toHaveCount(0);
+    await expect(header.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
   });
 
   test("a dealer lands on their dashboard home, not the marketing page", async ({ page }) => {
@@ -87,6 +98,14 @@ test.describe("sign-in", () => {
       page.getByRole("heading", { name: "Leads needing action" }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: "Open inbox" })).toBeVisible();
+
+    // Header upgrade (PROMPT-11): a dealer's nav gains Dashboard and loses the
+    // logged-out CTAs once the client-side viewer read resolves.
+    const header = page.locator("header");
+    await expect(header.locator("[data-auth-state]")).toHaveAttribute("data-auth-state", "signed-in");
+    await expect(header.getByRole("link", { name: "Dashboard" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Sign in" })).toHaveCount(0);
   });
 
   test("bad credentials show an error, not a crash", async ({ page }) => {

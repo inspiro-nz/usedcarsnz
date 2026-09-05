@@ -11,20 +11,23 @@ name: E2E
 # allows workers-ai | anthropic (there is no env-selectable mock adapter — the
 # Vitest suite mocks at module level instead). workers-ai needs the Cloudflare
 # AI binding, whose remote proxy cannot start on this runner (wrangler is
-# unauthenticated — "You must be logged in", non-fatal to next dev); anthropic
-# needs ANTHROPIC_API_KEY, which this workflow never sets. The specs
-# themselves stay on landing/marketplace/sign-in and never trigger an AI lane.
+# unauthenticated — "You must be logged in"; under `next start` the lane logs
+# "[ai:*] generation failed ... using safe path" and fails closed, verified
+# locally); anthropic needs ANTHROPIC_API_KEY, which this workflow never sets.
+# The money-shot spec seeds its own draft rather than generating one.
 #
-# Server decision (test-harness design left dev-vs-prod to T1): DEV server,
-# the same `next dev` the config uses locally. Prod-mode (`next build` +
-# `next start`) was tried first and caught a real pre-existing bug: the ISR
-# listing-detail page 500s under a prod server because the marketplace
-# layout's header reads auth cookies ("Page changed from static to dynamic at
-# runtime, reason: cookies"). Until that is fixed, prod-mode cannot go green,
-# so CI runs dev-mode; flipping back later is a one-line change in
-# playwright.config.ts. next dev's wrangler remote-proxy failure on a
-# credential-less runner is a logged, NON-fatal rejection (verified) — only
-# the AI binding dies, and no spec touches an AI lane.
+# Server decision: PRODUCTION server. playwright.config.ts's webServer runs
+# `npm run build && npm run start` (PROMPT-11). CI was on `next dev` from T1
+# until then because prod-mode caught a real bug it could not get past — the
+# ISR listing-detail page 500'd ("Page changed from static to dynamic at
+# runtime, reason: cookies") because the marketplace layout's header read
+# auth cookies. That read now lives behind a client fetch (/api/viewer), the
+# dealer storefront is ISR too, and the suite asserts both routes return
+# x-nextjs-cache: HIT on a second request — an assertion `next dev` can never
+# satisfy, which is the point: this class of bug cannot hide behind the dev
+# server again. The build happens inside the Playwright step, AFTER the
+# Supabase keys below are exported into $GITHUB_ENV, so NEXT_PUBLIC_* are
+# present when `next build` inlines them.
 
 on:
   pull_request:
@@ -112,7 +115,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright suite
-        # playwright.config.ts boots `next dev` as its webServer (see header).
+        # playwright.config.ts's webServer runs `next build` + `next start` —
+        # the PRODUCTION server (see header). The Supabase keys exported above
+        # are in this step's env, so the build inlines the NEXT_PUBLIC_* vars.
         run: npx playwright test
 
       - name: Upload Playwright report

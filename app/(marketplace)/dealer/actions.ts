@@ -9,14 +9,17 @@ export interface ActionState {
   error?: string;
 }
 
-// The public listing detail page is ISR-cached (revalidate = 300). Any listing
-// mutation (create / status change / mark-sold) invalidates ALL listing-detail
-// pages on demand so the demo never shows a stale price/status. Passing the
-// route pattern with "page" revalidates every dynamic instance without having to
-// reconstruct each listing's exact URL.
+// The public listing detail page AND the dealer storefront are ISR-cached
+// (revalidate = 300). Any listing mutation (create / status change / mark-sold)
+// invalidates ALL instances of both on demand, so neither the demo nor a real
+// dealer's storefront shows a stale price/status/stock count. Passing the route
+// pattern with "page" revalidates every dynamic instance without having to
+// reconstruct each listing's or dealer's exact URL.
 const LISTING_DETAIL_ROUTE = "/cars/[make]/[model]/[year]/[id]";
+const DEALER_STOREFRONT_ROUTE = "/dealers/[id]";
 function revalidateListings() {
   revalidatePath(LISTING_DETAIL_ROUTE, "page");
+  revalidatePath(DEALER_STOREFRONT_ROUTE, "page");
 }
 
 export async function approveDraftAction(

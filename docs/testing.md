@@ -19,9 +19,13 @@ Playwright specs live in `e2e/` and are **excluded** from the Vitest run
 
 ## Browser E2E (Playwright)
 
-Playwright drives a real Chromium against a dev server it boots for you
-(`webServer: npm run dev` in `playwright.config.ts`). You do **not** need to start
-the app yourself.
+Playwright drives a real Chromium against the **production** server it boots for
+you (`webServer: npm run build && npm run start` in `playwright.config.ts`). You
+do **not** need to start the app yourself. If something is already listening on
+`:3000` it is reused — make that `npm run build` then `npm run start`, not
+`npm run dev`: the suite asserts ISR cache behaviour that only a production
+server exhibits (see the ISR proof below), so a dev server fails those two
+tests by design.
 
 ```
 npm run test:e2e        # headless run
@@ -41,12 +45,25 @@ npx playwright install chromium
   exceptions or app-originated console errors on load.
 - **`e2e/marketplace.spec.ts`** — `/cars` returns 200 and shows either listing
   cards or the empty state; clicking a listing opens its detail page. The detail
-  test **skips** cleanly when the database has no listings.
+  test **skips** cleanly when the database has no listings. Plus the **ISR
+  proof** (PROMPT-11): a listing detail URL and a dealer storefront URL (found
+  via `/sitemap.xml`) are each requested twice and the second response must
+  carry `x-nextjs-cache: HIT` (or `STALE`) — the header `next start` emits for
+  routes served from the ISR cache. This is what makes "the demand surface is
+  cached" a tested claim rather than an intention: before the fix the listing
+  page 500'd under a production build ("Page changed from static to dynamic at
+  runtime, reason: cookies", because the shared marketplace header read auth
+  cookies) and the storefront was `force-dynamic`; `next dev` reproduced
+  neither, which is why CI no longer runs it.
 - **`e2e/signin.spec.ts`** — the priority. Fills email + password on `/sign-in`,
   submits, and asserts a *real* authenticated outcome that is now **role-aware**
   (PROMPT-10): a buyer lands on their account home (`/account`, "Your enquiries"
   section visible) and a dealer lands on the dealer home (`/dealer`, "Leads
-  needing action"), never on the marketing page `/`. The dealer case needs
+  needing action"), never on the marketing page `/`. Both then wait for the
+  marketplace header's auth sliver to upgrade (`data-auth-state="signed-in"`,
+  Sign out visible, Dashboard for the dealer) — the header is a static shell
+  that learns the viewer client-side via `GET /api/viewer`, so this proves the
+  upgrade fires after a soft sign-in navigation. The dealer case needs
   `E2E_DEALER_EMAIL` / `E2E_DEALER_PASSWORD` and skips without them. It also
   guards the recent regression by asserting the `signInWithPassword is not a
   function` error never appears, and checks the negative path (bad credentials
@@ -92,6 +109,11 @@ vars are absent.
    Run it again any time — after every `supabase db reset` in particular,
    which wipes the user and otherwise makes the sign-in spec fail with
    "Invalid login credentials" for an environmental reason, not a code one.
+   Known gap: the dealer fixture's `dealers` row is upserted with
+   `ignoreDuplicates`, so if `E2E_DEALER_EMAIL` changes between runs the
+   dealership keeps its *old* owner and the dealer sign-in / money-shot specs
+   land on `/account` instead of `/dealer`. `supabase db reset` (then
+   `e2e:setup`) clears it; CI always starts from a fresh stack.
    (`scripts/ensure-e2e-user.ts`; it creates the user auto-confirmed, or
    re-syncs the password to the env value if the user already exists.)
 
@@ -119,17 +141,21 @@ inside the Actions runner:
 3. `npm run e2e:setup` seeds the sign-in user from throwaway
    `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` set as plain workflow env; then
    `npm run seed:demo` gives the marketplace specs real listings.
-4. Playwright boots `next dev` as its `webServer`, same as locally. (Prod-mode
-   `next start` was tried and caught a real bug — the ISR listing-detail page
-   500s because the marketplace header reads auth cookies; once that's fixed,
-   CI should flip to the production server. The OpenNext dev shim's wrangler
-   remote-proxy failure on the credential-less runner is logged but non-fatal;
-   only the AI binding is dead, and no spec uses it.)
+4. Playwright boots the **production** server as its `webServer` — `npm run
+   build && npm run start`, same as locally. The build runs inside this step,
+   after the Supabase keys were exported into `$GITHUB_ENV`, so the
+   `NEXT_PUBLIC_*` values are inlined (and `lib/env.ts`'s lazy validation has
+   what it needs at request time). CI ran `next dev` from T1 until PROMPT-11
+   because prod-mode caught a bug it could not get past (the ISR listing page
+   500'd on the cookie-reading header); that bug is fixed and the dev fallback
+   is gone, so the suite now exercises the same static/dynamic route semantics
+   production has.
 5. On failure the `playwright-report/` HTML report is uploaded as an artifact.
 
 No live AI provider is reachable from the job: the `workers-ai` adapter's
-binding proxy can't start without Cloudflare auth, and the `anthropic`
-adapter needs `ANTHROPIC_API_KEY` (never set there).
+binding proxy can't start without Cloudflare auth (under `next start` the lane
+logs `[ai:*] generation failed … using safe path` and fails closed), and the
+`anthropic` adapter needs `ANTHROPIC_API_KEY` (never set there).
 
 ## DB invariant + RLS deny-matrix suite (`tests/db-invariants/`)
 

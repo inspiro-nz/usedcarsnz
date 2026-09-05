@@ -6,17 +6,22 @@ import { ListingCard } from "@/components/marketplace/listing-card";
 import { Badge, Empty } from "@/components/marketplace/ui";
 import { listingPath, listingTitle } from "@/lib/format";
 
-// Dynamic: a dealer's active stock changes as they list / pause / sell, and the
-// cookie-less public client keeps this cheap. RLS (dealers_select) means anon
-// only ever sees APPROVED dealers here — an unapproved/unknown id 404s.
-//
-// This page already reads through supabasePublic() and so is ISR-ready, but the
-// conversion is deliberately deferred: MarketplaceHeader in the shared
-// (marketplace) layout reads auth cookies via getViewer(), which forces every
-// route beneath it dynamic at runtime under a production build. Adding
-// `revalidate` here today would reproduce the listing-detail 500 rather than
-// gain caching. Convert once that layout read is fixed.
-export const dynamic = "force-dynamic";
+// ISR, matching listing detail: a storefront is public, anon-readable data read
+// through the cookie-less supabasePublic() client. Rendered on first request,
+// then served from cache for up to 5 minutes; a dealer's own stock changes
+// (list / pause / mark-sold) invalidate it on demand via revalidatePath in
+// dealer/actions.ts, so their storefront never lags a sale by the full window.
+// RLS (dealers_select) means anon only ever sees APPROVED dealers — an
+// unapproved/unknown id 404s.
+export const revalidate = 300;
+
+// Register the route for on-demand ISR (see listing detail for the rationale):
+// nothing is prerendered at build, but [] + dynamicParams=true means each
+// storefront renders on first request and is then cached per `revalidate`.
+export const dynamicParams = true;
+export function generateStaticParams(): Params[] {
+  return [];
+}
 
 interface Params {
   id: string;

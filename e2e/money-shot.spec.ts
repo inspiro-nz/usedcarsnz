@@ -168,14 +168,19 @@ test.describe("money shot: enquiry → ack → inbox → approve → sent", () =
     await textarea.fill(`${DRAFT_TEXT}\n\n${EDIT_LINE}`); // runbook step 4: edit one line
     await dp.getByRole("button", { name: "Approve & send" }).click(); // step 5
     // Success shows either as the form's transient note or — when the server
-    // action's revalidate wins the race — as the refreshed "sent" state.
+    // action's revalidate wins the race and unmounts the form — as the edited
+    // reply landing in the Conversation history (sendApprovedReply → messages).
     await expect(
-      dp.getByText(/Reply approved and sent|reply for this lead has been sent/).first(),
+      dp.getByText(/Reply approved and sent/).or(dp.getByText(EDIT_LINE)).first(),
     ).toBeVisible({ timeout: 20_000 });
 
-    // Reload: the pending draft is gone; the timeline carries the approval.
+    // Reload: the approved reply — with the human's edit — is in the
+    // conversation, and the timeline carries the approval. (No "no pending
+    // draft" assertion: where the AI binding is live, the real generateDraft
+    // parks its own pending draft on the same enquiry; the DB checks below
+    // pin OUR draft's state.)
     await dp.reload();
-    await expect(dp.getByText("the reply for this lead has been sent")).toBeVisible();
+    await expect(dp.getByText(EDIT_LINE)).toBeVisible();
     await expect(dp.getByText("draft_approved")).toBeVisible();
     await expect(dp.getByText("reply_sent")).toBeVisible();
     await dealerCtx.close();

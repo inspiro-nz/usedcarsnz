@@ -1,0 +1,16 @@
+# UsedCarsNZ
+
+> UsedCarsNZ (usedcarsnz.co.nz) is a New Zealand used-car co-listing platform for dealers. Dealers keep their Trade Me listing and add UsedCarsNZ; every buyer enquiry gets a first response in under 60 seconds, is qualified by a clearly labelled AI assistant, and is handed to the dealer as a warm lead. Dealer replies are approved by the dealer before they are sent, and response-time and conversion results are measured and published.
+
+UsedCarsNZ currently runs a free Founding Dealer pilot for New Zealand dealerships. It is not affiliated with Trade Me.
+
+## Main pages
+
+- [Home / Founding Dealer Program](https://usedcarsnz.co.nz/): what UsedCarsNZ does for dealers and how to join the pilot
+- [Browse cars](https://usedcarsnz.co.nz/cars): used cars listed by participating New Zealand dealers
+- [The number we publish](https://usedcarsnz.co.nz/metrics): public response-time and conversion metrics
+- [Privacy](https://usedcarsnz.co.nz/privacy): how buyer and dealer data is handled under the NZ Privacy Act 2020
+
+## Optional
+
+- [Sitemap](https://usedcarsnz.co.nz/sitemap.xml): every public listing and dealer storefront page

@@ -6,32 +6,47 @@ const faqs = [
   {
     question: 'What exactly does UsedCarsNZ do?',
     answer:
-      "UsedCarsNZ is a response speed tool for dealerships. When a buyer sends a vehicle enquiry, we make sure the right person at your dealership is notified immediately — so you can follow up before the buyer moves on. We don't build your website, list your cars, or manage your inventory.",
+      'Two things. It answers every buyer enquiry in seconds, qualifies the buyer with a labelled AI assistant, and hands you a warm lead with a reply drafted for your approval. And it measures the result, so you can see your real first-response time and conversion instead of guessing.',
   },
   {
-    question: 'Is this a listing site or marketplace?',
+    question: 'Do I have to leave Trade Me?',
     answer:
-      "No. UsedCarsNZ is not a marketplace, not a listing site, and not a dealer website builder. We work alongside the platforms you already use — like Trade Me Motors — by helping you respond to those enquiries faster.",
+      'No. Keep your Trade Me listings exactly as they are. The response tool works on the enquiries you already get there, via one email auto-forward rule. You can also co-list your stock on UsedCarsNZ at no cost, but that is optional.',
   },
   {
-    question: 'How is this different from just using email?',
+    question: 'Is this a marketplace or a tool?',
     answer:
-      "Email gets buried. By the time you see an enquiry, it may be hours old. UsedCarsNZ delivers real-time alerts so you can respond in minutes, not hours or the next business day. Speed is the entire point.",
+      'Both, and you do not have to choose. UsedCarsNZ hosts listings and dealer pages that are built to be found by search engines and AI assistants, and the same platform answers and qualifies enquiries from wherever they arrive, including Trade Me.',
   },
   {
-    question: 'What does the Founding Dealer Program involve?',
+    question: 'Will an AI be talking to my buyers?',
     answer:
-      "The Founding Dealer Program is a limited-access membership for New Zealand dealerships. You get early access to new features, dedicated support, and direct influence over development. In return, we ask for honest feedback so the platform works for dealers nationwide.",
+      'Only within tight limits. The instant acknowledgment is a fixed template, not AI-written. The assistant that follows is always labelled as an AI, asks qualification questions, and answers only routine generic questions from an approved list. Anything about the vehicle itself, price, warranty or finance is drafted for you and sent only after you approve it.',
   },
   {
-    question: 'Do I need to change how my dealership operates?',
+    question: 'What does it cost?',
     answer:
-      "Minimal change required. UsedCarsNZ fits into your existing workflow — you don't need to migrate listings, change your website, or retrain staff on a new CRM. We work with what you already have.",
+      'The two-month pilot is free, with no fees, commissions or charges of any kind, and either side can end it on five working days’ notice. If we continue afterwards, the plan is flat and simple. No per-lead charges. You will know the price before you pay anything.',
   },
   {
-    question: 'How many Founding Dealer Program spots are available?',
+    question: 'How is the proof measured?',
     answer:
-      "The program is limited to the first 10 dealerships nationwide so we can provide hands-on support and build a better product for all NZ dealers.",
+      'Every acknowledgment, reply, appointment and sale is written to an append-only event log that cannot be edited, by us or anyone else. Your dashboard reads from that log, and so does the public platform number. Nothing is published until there are enough measured responses for the figure to be honest.',
+  },
+  {
+    question: 'What happens to buyer information?',
+    answer:
+      'Forwarded enquiry emails are processed under the pilot agreement and New Zealand privacy law. The raw email is kept for 30 days for troubleshooting, then deleted automatically. If the pilot ends, you can ask us to delete or de-identify the buyer data we processed for you.',
+  },
+  {
+    question: 'How long does setup take?',
+    answer:
+      'About three minutes. We give you a private forwarding address, you add one rule in Gmail or Outlook, and leads start flowing. No DMS migration, no re-keying, no staff retraining.',
+  },
+  {
+    question: 'How many Founding Dealer spots are there?',
+    answer:
+      'Ten, starting with Christchurch dealerships so the founder can visit in person. Founding dealers get hands-on support, first use of new tools, and a direct say in what gets built next.',
   },
 ]
 

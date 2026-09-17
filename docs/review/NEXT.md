@@ -30,6 +30,17 @@ fallback) → `listing_photos` → a standalone cron Worker on the
 `workers/outbox-sweep` pattern → founder-visible failure alert → tests.
 Write it as `prompts/PROMPT-13.md` once the inputs above exist.
 
+**Read the sample export with `prompts/PROMPT-14.md` open.** That package
+covers the *other* half of the same problem: the `listings` schema has ~30
+vehicle columns and the dealer form writes 16 of them, and VIN/plate,
+structured features and a normalised make/model do not exist at all — so the
+browse filters, the Car JSON-LD and any future AI search are all reading a
+sparse table. Its Task 1 (a data-point register, no code) is safe to run
+before the export arrives and is the right preparation for reading it; its
+Task 2 (the migration) is blocked by the same rule as M1 above. Do not let
+PROMPT-14 pre-empt PROMPT-13 — the feed's actual columns should inform the
+capture design, not the reverse.
+
 ## Meanwhile (founder, not tool)
 
 - M0: sign two design-partner dealers (`docs/legal/pilot-agreement-DRAFT.md`).

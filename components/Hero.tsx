@@ -1,7 +1,7 @@
 const stats = [
-  { value: '< 2 min', label: 'Target response time' },
-  { value: 'Free', label: 'For founding members' },
-  { value: '10', label: 'Limited dealer spots' },
+  { value: '< 60 sec', label: 'First response to every enquiry, 24/7' },
+  { value: 'Free', label: 'For the two-month pilot' },
+  { value: '10', label: 'Founding dealer spots' },
 ]
 
 export default function Hero() {
@@ -19,17 +19,19 @@ export default function Hero() {
       <div className="relative max-w-4xl mx-auto text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm font-medium rounded-full mb-8">
           <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" aria-hidden="true" />
-          Founding Dealer Program — Limited Availability
+          Founding Dealer Program — Christchurch first, 10 spots
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6">
-          Help every enquiry get a professional response,
-          <span className="block text-orange-400 mt-1">even after hours.</span>
+          Keep your Trade Me listing. Add us.
+          <span className="block text-orange-400 mt-1">Every enquiry answered in under a minute.</span>
         </h1>
 
         <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-          UsedCarsNZ helps New Zealand dealerships capture more buyer enquiries with
-          faster responses and smarter follow-up.
+          UsedCarsNZ acknowledges every buyer enquiry in seconds, qualifies the buyer
+          with a clearly labelled AI assistant, and hands you a warm lead. Nothing
+          substantive goes to a buyer until you approve it, and we measure the
+          results on a dashboard you can hold us to.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

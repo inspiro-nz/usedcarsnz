@@ -48,8 +48,9 @@ function SuccessState() {
         </div>
         <h2 className="text-3xl font-bold text-white mb-4">You are on the list!</h2>
         <p className="text-slate-300 text-lg leading-relaxed">
-          Thanks for your interest in the Founding Dealer Program. We will be in touch
-          shortly to get you set up with a free onboarding call.
+          Thanks for your interest in the Founding Dealer Program. The founder will
+          be in touch shortly to talk through your enquiry flow and get you set up.
+          No cost, no commitment.
         </p>
       </div>
     </section>
@@ -176,8 +177,8 @@ export default function PilotFormClient({ siteKey }: { siteKey: string }) {
             Join the Founding Dealer Program
           </h2>
           <p className="text-slate-300 text-lg leading-relaxed">
-            Get early access, free setup support, and help shape the product that
-            Kiwi dealers actually need.
+            A free two-month pilot: every enquiry answered in under a minute, a
+            dashboard that shows your real numbers, and a direct line to the founder.
           </p>
         </div>
 

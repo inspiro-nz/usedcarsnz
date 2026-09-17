@@ -344,7 +344,7 @@ Founder/operator. Dealer approval queue, listing moderation, user management, pl
 - ✅ Sub-60-second first response to every buyer enquiry, 24/7. **Deterministic templated acknowledgment — no LLM in the send path.** (`POST /api/enquiries`; measured at <5s in the timing script.)
 - ✅ Enquiry sources: (a) buyer enquiries on UsedCarsNZ listings; (b) the dealer's existing Trade Me enquiry emails via Cloudflare Email Routing → Email Worker → Supabase. *(Code complete; the Cloudflare zone routing is not yet configured.)*
 - ✅ Buyer-side qualification flow: budget, finance need, trade-in, timeline, location, genuine-intent screening, persisted as structured data. (`lib/ai/trigger.ts`, `POST /api/ai/chat` with SSE streaming.)
-- ✅ Dealer-side: AI generates a DRAFT written to `ai_drafts` (`status='draft'`). Nothing sends until `status='approved'` by an authenticated dealer. Enforced in code paths and tests.
+- ✅ Dealer-side: AI generates a draft written to `ai_drafts` (`status='pending'`) — or the dealer writes their own free-text reply when no AI draft is pending (`lib/leads.ts` `sendDealerReply()`, staged the same way). Nothing sends until `status='approved'` by an authenticated dealer, via the same `approve_draft()` gate either way. Enforced in code paths and tests.
 - ✅ Clear 'you're chatting with an AI assistant' labelling on every AI interaction.
 - ⚠️ Test-drive / viewing booking handoff — status transitions exist; the booking flow is thin.
 - ✅ Every step time-stamped into the immutable `lead_events` log.
@@ -364,7 +364,7 @@ Founder/operator. Dealer approval queue, listing moderation, user management, pl
  
 - ✅ Standard filters, clean URLs (`/cars/[make]/[model]/[year]/[id]`), SSR.
 - ❌ AI natural-language search (pgvector + embeddings) — deferred to Phase 2/3, as planned.
-- ⚠️ SEO: clean URLs and SSR built; JSON-LD, `llms.txt`, sitemap unverified.
+- ✅ SEO: clean URLs, SSR, JSON-LD on listing detail (`Car`/`Offer`; no `image` property — `listing_photos` is unused schema, pending M1's photo pipeline), ISR-cached sitemap including dealer storefronts, `robots.txt` with an explicit GPTBot/ClaudeBot/PerplexityBot/CCBot allowlist — all verified in code and by E2E cache-hit assertions (M-1, PR #45/#47). *(`llms.txt` still not built.)*
 ## 9.5 Enquiry & Lead Management (CRM Seed)
  
 - ✅ Enquiry form on every listing; no account required; instant templated ack is the first touch.

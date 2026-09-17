@@ -49,7 +49,7 @@ export function Badge({
   tone = "neutral",
 }: {
   children: ReactNode;
-  tone?: "neutral" | "ok" | "signal" | "pending";
+  tone?: "neutral" | "ok" | "signal" | "pending" | "danger";
 }) {
   const cls =
     tone === "ok"
@@ -58,7 +58,9 @@ export function Badge({
         ? "bg-orange-50 text-orange-700"
         : tone === "pending"
           ? "bg-amber-50 text-amber-700"
-          : "bg-slate-100 text-slate-600";
+          : tone === "danger"
+            ? "bg-red-50 text-red-700"
+            : "bg-slate-100 text-slate-600";
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}

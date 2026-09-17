@@ -134,3 +134,27 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config workers/raw-email-purge/wrangler.jsonc --var TARGET_URL:https://demo.usedcarsnz.co.nz/api/cron/purge-raw-email
+
+  deploy-close-stale-leads:
+    # Standalone Cron Worker (workers/close-stale-leads): daily auto-close of
+    # leads with no buyer reply in 7 days, by POSTing /api/cron/close-stale-leads.
+    # Same secret model and TARGET_URL override as deploy-outbox-sweep above.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy close-stale-leads worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config workers/close-stale-leads/wrangler.jsonc --var TARGET_URL:https://demo.usedcarsnz.co.nz/api/cron/close-stale-leads

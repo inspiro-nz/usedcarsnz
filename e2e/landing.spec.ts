@@ -17,7 +17,7 @@ test.describe("landing page", () => {
     expect(res?.status()).toBe(200);
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      "Help every enquiry get a professional response",
+      "Keep your Trade Me listing. Add us.",
     );
     await expect(
       page.getByRole("link", { name: "Join the Founding Dealer Program" }).first(),

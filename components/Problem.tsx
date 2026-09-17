@@ -2,22 +2,12 @@ const problems = [
   {
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-      </svg>
-    ),
-    title: 'Missed Enquiries',
-    description:
-      "Buyers send enquiries and move on when nobody responds quickly. By the time a dealer follows up, the lead is cold — or gone to a competitor who replied first.",
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
-    title: 'Delayed Responses',
+    title: 'Enquiries wait hours, not minutes',
     description:
-      "Between showroom traffic, admin, and after-hours gaps, responding to online enquiries falls to the bottom of the list. Buyers don't wait around.",
+      'Most online enquiries land while the sales desk is busy or closed. Around six in ten arrive after hours. By the time someone replies, the buyer has moved on.',
   },
   {
     icon: (
@@ -25,9 +15,9 @@ const problems = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
-    title: 'Buyers Contact Multiple Dealers',
+    title: 'Buyers enquire with several dealers at once',
     description:
-      "Today's car buyer submits enquiries to 3–5 dealerships simultaneously. Whoever responds first wins the conversation. Whoever responds last rarely gets a second chance.",
+      'The first yard to answer usually gets the conversation. The rest are competing for a second look that rarely comes.',
   },
   {
     icon: (
@@ -35,9 +25,19 @@ const problems = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
       </svg>
     ),
-    title: 'Lost Sales Opportunities',
+    title: 'One platform, rising fees',
     description:
-      'Every delayed response is a potential sale handed to the competition. The cost of slow follow-up compounds across every enquiry, every day.',
+      'Trade Me Motors holds most of the market and has restructured dealer listing pricing upward. There is no real alternative to add alongside it.',
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+    title: 'Nobody can show you the numbers',
+    description:
+      'How fast do your enquiries actually get answered? How many turn into appointments and sales? Most dealers are guessing, and every platform asks you to take its word for it.',
   },
 ]
 
@@ -50,8 +50,8 @@ export default function Problem() {
             The Problem Dealers Face Every Day
           </h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            Online enquiries are time-sensitive. Most dealerships aren&apos;t set up to
-            respond at the speed buyers now expect.
+            Speed to lead is the one lever a dealership controls, and the one most
+            yards are not set up for.
           </p>
         </div>
 

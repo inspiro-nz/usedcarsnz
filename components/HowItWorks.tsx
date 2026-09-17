@@ -1,27 +1,27 @@
 const steps = [
   {
     number: '01',
-    title: 'Enquiry Arrives',
+    title: 'Connect your enquiries',
     description:
-      "A buyer submits a vehicle enquiry through your existing channels — Trade Me, your website, or any enquiry form you use.",
+      'Set one auto-forward rule so a copy of each Trade Me enquiry email reaches your private UsedCarsNZ address. About three minutes, once. Co-list your stock here too, at no cost.',
   },
   {
     number: '02',
-    title: 'Dealer Is Notified',
+    title: 'Instant acknowledgment, 24/7',
     description:
-      'UsedCarsNZ instantly alerts the right person at your dealership — no logging into dashboards, no checking email queues.',
+      'Every buyer gets a short, templated reply within seconds, sent as your dealership. Not written by an AI model, so it never says anything about the car.',
   },
   {
     number: '03',
-    title: 'Faster Follow-Up',
+    title: 'Qualified, then drafted for you',
     description:
-      "Your team responds while the buyer's interest is at its peak. No missed notifications, no next-day catch-ups.",
+      'A clearly labelled AI assistant asks about budget, finance, trade-in and timing, then drafts your reply. Nothing substantive is sent until someone at your yard approves it.',
   },
   {
     number: '04',
-    title: 'More Opportunities Captured',
+    title: 'Warm lead, measured result',
     description:
-      'By responding faster than your competition, you convert more enquiries into conversations — and more conversations into sales.',
+      'The lead lands in your inbox with the conversation attached. First-response time, enquiry to appointment and appointment to sale are all recorded on your dashboard.',
   },
 ]
 
@@ -34,7 +34,8 @@ export default function HowItWorks() {
             How It Works
           </h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            A simple process designed to fit into how your dealership already operates.
+            You keep doing exactly what you do now. We sit on top of your existing
+            enquiry flow.
           </p>
         </div>
 

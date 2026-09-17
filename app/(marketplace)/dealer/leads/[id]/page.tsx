@@ -12,7 +12,13 @@ import type {
 import { listingTitle, nzd, timeNZ } from "@/lib/format";
 import { Badge } from "@/components/marketplace/ui";
 import { ApproveDraftForm } from "./approve-form";
-import { bookViewingAction, markSoldAction } from "@/app/(marketplace)/dealer/actions";
+import { ComposeReplyForm } from "./compose-reply-form";
+import {
+  bookViewingAction,
+  closeLeadAction,
+  markSoldAction,
+  reopenLeadAction,
+} from "@/app/(marketplace)/dealer/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Lead" };
@@ -102,11 +108,16 @@ export default async function LeadDetailPage({
             ) : null}
           </section>
 
-          {/* The full conversation the buyer sees (messages table) */}
+          {/* The full conversation the buyer sees (messages table) — this is
+              history, not something to act on; the actionable item is the
+              draft/compose section below. */}
           <section className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Conversation
-            </h2>
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Conversation
+              </h2>
+              <span className="text-xs text-slate-400">Already sent to the buyer</span>
+            </div>
             <div className="mt-4 space-y-3">
               {((messages ?? []) as MessageRow[]).length === 0 ? (
                 <p className="text-sm text-slate-500">
@@ -121,31 +132,44 @@ export default async function LeadDetailPage({
             </div>
           </section>
 
-          {/* The human-approval gate */}
-          <section className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
-            <div className="flex items-baseline justify-between">
+          {/* The human-approval gate, or — once there's no draft waiting —
+              a free-text compose box so a follow-up can still be sent. Not
+              shown once the lead is sold or closed: both terminal states
+              already discard any pending draft (discardPendingDrafts in
+              lib/leads.ts), so there'd be nothing to approve, and a closed
+              lead reopens first before replying. */}
+          {enquiry.status === "closed" || enquiry.status === "sold" ? (
+            <section className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                AI-drafted reply — awaiting your approval
+                Reply to buyer
               </h2>
-              <Badge tone="signal">draft, not sent</Badge>
-            </div>
-            <div className="mt-3">
-              {pendingDraft ? (
-                <ApproveDraftForm
-                  enquiryId={enquiry.id}
-                  draftId={pendingDraft.id}
-                  draftText={pendingDraft.draft_text}
-                />
-              ) : (
-                <p className="text-sm text-slate-500">
-                  No draft awaiting approval
-                  {(drafts ?? []).length
-                    ? " — the reply for this lead has been sent."
-                    : "."}
-                </p>
-              )}
-            </div>
-          </section>
+              <p className="mt-3 text-sm text-slate-500">
+                {enquiry.status === "closed"
+                  ? "This lead is closed. Reopen it (in the panel on the right) to reply."
+                  : "This lead is sold — no further reply needed."}
+              </p>
+            </section>
+          ) : (
+            <section className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  {pendingDraft ? "AI-drafted reply — awaiting your approval" : "Reply to buyer"}
+                </h2>
+                {pendingDraft ? <Badge tone="signal">draft, not sent</Badge> : null}
+              </div>
+              <div className="mt-3">
+                {pendingDraft ? (
+                  <ApproveDraftForm
+                    enquiryId={enquiry.id}
+                    draftId={pendingDraft.id}
+                    draftText={pendingDraft.draft_text}
+                  />
+                ) : (
+                  <ComposeReplyForm enquiryId={enquiry.id} />
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Timeline + lifecycle actions */}
@@ -155,7 +179,22 @@ export default async function LeadDetailPage({
               Next step
             </h2>
             <div className="mt-3 space-y-3">
-              {enquiry.status !== "sold" ? (
+              {enquiry.status === "sold" ? (
+                <p className="text-sm text-green-600">Sold. Nice one.</p>
+              ) : enquiry.status === "closed" ? (
+                <>
+                  <p className="text-sm text-slate-500">
+                    Closed — not sold. Auto-closes after 7 days of no reply
+                    from the buyer, or closed manually.
+                  </p>
+                  <form action={reopenLeadAction}>
+                    <input type="hidden" name="enquiry_id" value={enquiry.id} />
+                    <button className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900">
+                      Reopen lead
+                    </button>
+                  </form>
+                </>
+              ) : (
                 <>
                   <form action={bookViewingAction}>
                     <input type="hidden" name="enquiry_id" value={enquiry.id} />
@@ -177,9 +216,13 @@ export default async function LeadDetailPage({
                       Mark sold to this buyer
                     </button>
                   </form>
+                  <form action={closeLeadAction}>
+                    <input type="hidden" name="enquiry_id" value={enquiry.id} />
+                    <button className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700">
+                      Close — not sold
+                    </button>
+                  </form>
                 </>
-              ) : (
-                <p className="text-sm text-green-600">Sold. Nice one.</p>
               )}
             </div>
           </section>

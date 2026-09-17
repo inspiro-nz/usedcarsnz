@@ -29,6 +29,7 @@ interface EventRow {
 interface World {
   enquiries: Row[];
   ai_drafts: Row[];
+  messages: Row[];
   events: EventRow[];
   rpcCalls: { fn: string; args: Record<string, unknown> }[];
 }
@@ -53,7 +54,7 @@ vi.mock("@/lib/supabase/service", () => ({
   supabaseService: () => makeServiceClient(),
 }));
 
-import { approveAndSendDraft, sendApprovedReply } from "@/lib/leads";
+import { approveAndSendDraft, closeLead, closeStaleLeads, reopenLead, sendApprovedReply } from "@/lib/leads";
 
 function world(): World {
   if (!H.state) throw new Error("test world not seeded");
@@ -74,10 +75,17 @@ function canAccess(a: Auth, row: Row): boolean {
   return false;
 }
 
+type Filter =
+  | { col: string; op: "eq"; val: unknown }
+  | { col: string; op: "in"; vals: unknown[] }
+  | { col: string; op: "lt"; val: unknown };
+
 class Builder {
-  private filters: [string, unknown][] = [];
+  private filters: Filter[] = [];
   private mode: "select" | "update" = "select";
   private patch: Row | null = null;
+  private sort: { col: string; ascending: boolean } | null = null;
+  private limitN: number | null = null;
 
   constructor(
     private rows: Row[],
@@ -88,7 +96,23 @@ class Builder {
     return this;
   }
   eq(col: string, val: unknown) {
-    this.filters.push([col, val]);
+    this.filters.push({ col, op: "eq", val });
+    return this;
+  }
+  in(col: string, vals: unknown[]) {
+    this.filters.push({ col, op: "in", vals });
+    return this;
+  }
+  lt(col: string, val: unknown) {
+    this.filters.push({ col, op: "lt", val });
+    return this;
+  }
+  order(col: string, opts: { ascending: boolean }) {
+    this.sort = { col, ascending: opts.ascending };
+    return this;
+  }
+  limit(n: number) {
+    this.limitN = n;
     return this;
   }
   update(patch: Row) {
@@ -96,18 +120,37 @@ class Builder {
     this.patch = patch;
     return this;
   }
+  insert(row: Row) {
+    this.rows.push({ id: `generated-${this.rows.length + 1}`, ...row });
+    return Promise.resolve({ data: null, error: null });
+  }
 
   private match(): Row[] {
-    return this.rows.filter(
+    let rows = this.rows.filter(
       (r) =>
-        this.filters.every(([c, v]) => r[c] === v) &&
-        (!this.rls || canAccess(auth(), r)),
+        this.filters.every((f) => {
+          if (f.op === "eq") return r[f.col] === f.val;
+          if (f.op === "in") return f.vals.includes(r[f.col]);
+          return String(r[f.col]) < String(f.val); // "lt", ISO-string comparable
+        }) && (!this.rls || canAccess(auth(), r)),
     );
+    if (this.sort) {
+      const { col, ascending } = this.sort;
+      rows = [...rows].sort((a, b) => {
+        const cmp = String(a[col]).localeCompare(String(b[col]));
+        return ascending ? cmp : -cmp;
+      });
+    }
+    if (this.limitN != null) rows = rows.slice(0, this.limitN);
+    return rows;
   }
 
   single<T = Row>() {
     const data = (this.match()[0] as T | undefined) ?? null;
     return Promise.resolve({ data, error: null });
+  }
+  maybeSingle<T = Row>() {
+    return this.single<T>();
   }
 
   then<R1 = { data: unknown; error: null }, R2 = never>(
@@ -231,7 +274,7 @@ function seed(opts: {
     sent_at: null,
   };
   H.state = {
-    world: { enquiries: [enquiry], ai_drafts: [draft], events: [], rpcCalls: [] },
+    world: { enquiries: [enquiry], ai_drafts: [draft], messages: [], events: [], rpcCalls: [] },
     auth: {
       authUid: USER,
       memberDealerIds: new Set([DEALER]),
@@ -390,5 +433,126 @@ describe("§7 approve-gate — no free-text reply without an approved draft", ()
     });
 
     expect(world().enquiries[0].status).toBe("contacted");
+  });
+});
+
+describe("closeLead / reopenLead — the manual not-sold lifecycle", () => {
+  it("closes a new/contacted lead and logs lead_closed (actor=human)", async () => {
+    seed({ enquiryStatus: "contacted" });
+
+    await closeLead("enq-1");
+
+    expect(world().enquiries[0].status).toBe("closed");
+    expect(eventsOf("lead_closed")).toHaveLength(1);
+    expect(eventsOf("lead_closed")[0].actor).toBe("human");
+  });
+
+  it("discards any still-pending draft when closing — it must not keep counting as 'awaiting approval'", async () => {
+    seed({ enquiryStatus: "contacted", draftStatus: "pending" });
+
+    await closeLead("enq-1");
+
+    expect(world().ai_drafts[0].status).toBe("discarded");
+  });
+
+  it("refuses to close an already-sold or already-closed lead", async () => {
+    seed({ enquiryStatus: "sold" });
+    await expect(closeLead("enq-1")).rejects.toThrow(/already sold/i);
+
+    seed({ enquiryStatus: "closed" });
+    await expect(closeLead("enq-1")).rejects.toThrow(/already closed/i);
+  });
+
+  it("rejects closing a lead the caller does not own", async () => {
+    seed({ enquiryStatus: "new", enquiryDealer: OTHER_DEALER });
+    await expect(closeLead("enq-1")).rejects.toThrow();
+    expect(world().enquiries[0].status).toBe("new");
+  });
+
+  it("reopens a closed lead back to contacted and logs lead_reopened (actor=human)", async () => {
+    seed({ enquiryStatus: "closed" });
+
+    await reopenLead("enq-1");
+
+    expect(world().enquiries[0].status).toBe("contacted");
+    expect(eventsOf("lead_reopened")).toHaveLength(1);
+    expect(eventsOf("lead_reopened")[0].actor).toBe("human");
+  });
+
+  it("refuses to reopen a lead that isn't closed", async () => {
+    seed({ enquiryStatus: "new" });
+    await expect(reopenLead("enq-1")).rejects.toThrow(/not closed/i);
+  });
+});
+
+describe("closeStaleLeads — the 7-day auto-close timer", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const OLD = new Date(Date.now() - 10 * DAY_MS).toISOString();
+  const RECENT = new Date(Date.now() - 1 * DAY_MS).toISOString();
+
+  function seedWorld(enquiries: Row[], messages: Row[] = [], aiDrafts: Row[] = []) {
+    H.state = {
+      world: { enquiries, ai_drafts: aiDrafts, messages, events: [], rpcCalls: [] },
+      auth: { authUid: USER, memberDealerIds: new Set([DEALER]), isAdmin: false },
+    };
+  }
+
+  it("closes a new/contacted lead whose buyer has been silent for 10 days", async () => {
+    seedWorld([
+      { id: "stale-1", dealer_id: DEALER, status: "new", created_at: OLD },
+    ]);
+
+    const result = await closeStaleLeads();
+
+    expect(result.closed).toBe(1);
+    expect(world().enquiries[0].status).toBe("closed");
+    expect(eventsOf("lead_closed")).toHaveLength(1);
+    expect(eventsOf("lead_closed")[0].actor).toBe("system");
+  });
+
+  it("discards a stale lead's still-pending draft on auto-close", async () => {
+    seedWorld(
+      [{ id: "stale-2", dealer_id: DEALER, status: "new", created_at: OLD }],
+      [],
+      [{ id: "draft-stale-2", enquiry_id: "stale-2", status: "pending" }],
+    );
+
+    await closeStaleLeads();
+
+    expect(world().ai_drafts[0].status).toBe("discarded");
+  });
+
+  it("does not close a lead whose buyer messaged recently, even if the enquiry itself is old", async () => {
+    seedWorld(
+      [{ id: "recent-buyer-1", dealer_id: DEALER, status: "contacted", created_at: OLD }],
+      [{ id: "m1", enquiry_id: "recent-buyer-1", sender: "buyer", created_at: RECENT }],
+    );
+
+    const result = await closeStaleLeads();
+
+    expect(result.closed).toBe(0);
+    expect(world().enquiries[0].status).toBe("contacted");
+  });
+
+  it("never touches viewing_booked, sold, or already-closed leads", async () => {
+    seedWorld([
+      { id: "vb-1", dealer_id: DEALER, status: "viewing_booked", created_at: OLD },
+      { id: "sold-1", dealer_id: DEALER, status: "sold", created_at: OLD },
+      { id: "closed-1", dealer_id: DEALER, status: "closed", created_at: OLD },
+    ]);
+
+    const result = await closeStaleLeads();
+
+    expect(result.closed).toBe(0);
+    expect(world().enquiries.map((e) => e.status)).toEqual(["viewing_booked", "sold", "closed"]);
+  });
+
+  it("leaves a lead alone that is still within the 7-day window", async () => {
+    seedWorld([{ id: "fresh-1", dealer_id: DEALER, status: "new", created_at: RECENT }]);
+
+    const result = await closeStaleLeads();
+
+    expect(result.closed).toBe(0);
+    expect(world().enquiries[0].status).toBe("new");
   });
 });

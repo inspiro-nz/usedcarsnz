@@ -13,11 +13,11 @@ export const metadata: Metadata = {
     template: "%s | UsedCarsNZ",
   },
   description:
-    "UsedCarsNZ Founding Dealer Program for New Zealand dealerships that want faster enquiry response and more sales opportunities.",
+    "Keep your Trade Me listing and add UsedCarsNZ. Every buyer enquiry answered in under a minute, qualified by a labelled AI assistant, approved by you, and measured on a dashboard you can hold us to.",
   openGraph: {
     title: "UsedCarsNZ Founding Dealer Program",
     description:
-      "Help your dealership respond faster to vehicle enquiries and win more buyers across New Zealand.",
+      "Every enquiry answered in under a minute, qualified, handed to you warm, and measured. Free two-month pilot for NZ dealerships.",
     type: "website",
   },
   twitter: {

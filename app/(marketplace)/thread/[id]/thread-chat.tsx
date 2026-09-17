@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MessageSender } from "@/lib/db/types";
+
+const POLL_INTERVAL_MS = 6000;
 
 interface ChatMessage {
   id: string;
@@ -33,6 +35,26 @@ export function ThreadChat({
   const [degraded, setDegraded] = useState(false);
   const streamingId = useRef<string | null>(null);
   const localIdCounter = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to the latest message — on the buyer's own send, on each
+  // streamed token, and on a poll picking up a dealer reply while this tab
+  // is open. Previously nothing scrolled the (deliberately capped-height,
+  // overflow-y-auto) message list, so a conversation longer than one screen
+  // left new messages invisible below the fold until manually scrolled.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  // Cursor for polling "what's new since the last thing this tab has shown."
+  // Bumped to "now" right after our own turn finishes so the next poll
+  // doesn't re-fetch the message we already rendered from the stream.
+  const cursorRef = useRef(
+    initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].createdAt : new Date(0).toISOString(),
+  );
 
   const seller = dealerName ?? "the seller";
 
@@ -40,6 +62,31 @@ export function ThreadChat({
     localIdCounter.current += 1;
     return `${prefix}-${localIdCounter.current}`;
   }
+
+  // Picks up messages that landed outside this tab's own turns — chiefly a
+  // dealer reply sent from the portal while the buyer has this page open.
+  useEffect(() => {
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      if (pendingRef.current || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch(
+          `/api/thread/${enquiryId}/messages?after=${encodeURIComponent(cursorRef.current)}`,
+        );
+        if (!res.ok) return;
+        const { messages: fresh } = (await res.json()) as { messages: ChatMessage[] };
+        if (cancelled || fresh.length === 0) return;
+        cursorRef.current = fresh[fresh.length - 1].createdAt;
+        setMessages((prev) => [...prev, ...fresh]);
+      } catch {
+        // Best-effort — the next tick tries again.
+      }
+    }, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [enquiryId]);
 
   async function send() {
     const text = draft.trim();
@@ -83,6 +130,7 @@ export function ThreadChat({
     } finally {
       streamingId.current = null;
       setPending(false);
+      cursorRef.current = new Date().toISOString();
     }
   }
 
@@ -108,6 +156,7 @@ export function ThreadChat({
         ) : (
           messages.map((m) => <Bubble key={m.id} message={m} seller={seller} />)
         )}
+        <div ref={bottomRef} />
       </div>
 
       {degraded ? (

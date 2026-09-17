@@ -33,7 +33,9 @@ export type LeadEventType =
   | "ack_sent"
   | "buyer_message_received"
   | "appointment_booked"
-  | "lead_closed";
+  | "lead_closed"
+  // Added in 20260913090000_lead_reopened_event.sql — additive, existing values above unchanged.
+  | "lead_reopened";
 export type AiDraftStatus =
   | "pending"
   | "approved"

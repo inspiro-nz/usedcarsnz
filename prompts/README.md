@@ -20,6 +20,7 @@ The session must follow the prompt's invariants and verification gate, and
 | PROMPT-10 — Signed-in home | **Opus** | Role-aware routing + two new home surfaces; design judgement and a deliberate spec change to the sign-in wall |
 | PROMPT-11 — ISR/header-cookies fix | **Opus** | Diagnosing why one ISR route went dynamic under `next build`; required experiments (Suspense vs client sliver) and moving E2E onto a production server |
 | PROMPT-12 — M-1 close-out | **Sonnet** | Housekeeping against a written checklist: delete debris, archive a doc, one fixture fix, roadmap truth-up |
+| PROMPT-14 — Vehicle data capture + AI search | **Opus** | Task 1 is a judgement call about which data points earn their capture cost; Task 2 touches privacy (VIN/plate) where this database has a known grants trap; Task 3 needs the session to argue against a vector-first instruction |
 
 Shared context for all three lives in `test-harness-design.md` — each prompt
 assumes the session reads it first.
@@ -43,6 +44,15 @@ assumes the session reads it first.
   **Executed 5 Sep 2026** — branch `chore/m1-closeout`.
 - `PROMPT-9.md` — **executed 19 July 2026** (PRs #34–#36); kept as the format
   reference for writing new packages.
+- `PROMPT-14.md` — vehicle data capture (the ~30-column `listings` schema is
+  written 16 columns deep; VIN/plate, structured features and normalised
+  make/model do not exist at all) and the buyer NL search it unlocks. **Not
+  runnable end-to-end yet:** Task 1 (the data-point register) can run today,
+  Task 2 waits on the same real dealer sample export that blocks M1 /
+  PROMPT-13, and Task 3 is in explicit tension with the ROADMAP kill list and
+  needs a founder decision before a line of it is written. The session must
+  read `docs/review/NEXT.md` first. PROMPT-13 (M1 feed ingestion) is reserved
+  and still unwritten.
 
 ## Writing a new package
 

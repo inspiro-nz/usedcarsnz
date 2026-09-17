@@ -159,7 +159,15 @@ export default async function AccountPage({
                   {dealer.business_name}
                 </p>
                 <div className="mt-1 flex items-center gap-2">
-                  <Badge tone={dealer.status === "approved" ? "ok" : "pending"}>
+                  <Badge
+                    tone={
+                      dealer.status === "approved"
+                        ? "ok"
+                        : dealer.status === "suspended" || dealer.status === "rejected"
+                          ? "danger"
+                          : "pending"
+                    }
+                  >
                     {dealer.status}
                   </Badge>
                   {dealer.verified ? <Badge tone="ok">verified</Badge> : null}

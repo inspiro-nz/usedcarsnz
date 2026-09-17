@@ -71,6 +71,7 @@ describe("hostile inbound email at the AI-adapter/guard boundary", () => {
         listingTitle: "2020 Ford Ranger Wildtrak",
         approvedFacts: {},
         qualificationSoFar: null,
+        targetTopic: "budget",
       });
 
       const { data } = await generateStructured(
@@ -99,7 +100,7 @@ describe("hostile inbound email at the AI-adapter/guard boundary", () => {
         const { data } = await generateStructured(
           provider,
           {
-            system: buildQualifySystemPrompt({ dealerName: "Addington Autos", listingTitle: null, approvedFacts: {}, qualificationSoFar: null }),
+            system: buildQualifySystemPrompt({ dealerName: "Addington Autos", listingTitle: null, approvedFacts: {}, qualificationSoFar: null, targetTopic: "budget" }),
             messages: [{ role: "user", content: buildQualifyUserTurn("hi") }],
           },
           QualifyOutputSchema,

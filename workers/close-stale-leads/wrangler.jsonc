@@ -1,0 +1,26 @@
+{
+  // Standalone Cron Worker: daily auto-close of leads with no buyer reply in
+  // 7 days, by POSTing the app's /api/cron/close-stale-leads. Separate Worker
+  // because the OpenNext app worker has no `scheduled` handler. See src/index.ts.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "usedcarsnz-close-stale-leads",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // Daily at 14:00 UTC — offset from keepalive (12:00) and raw-email-purge (13:30).
+  "triggers": {
+    "crons": ["0 14 * * *"]
+  },
+  "vars": {
+    // The protected app endpoint. Defaults to PROD (not behind Access). For a
+    // demo target behind Access, override this and set the CF_ACCESS_* secrets.
+    "TARGET_URL": "https://usedcarsnz.co.nz/api/cron/close-stale-leads"
+  }
+  // Secrets — never here. Set with `wrangler secret put <NAME>` in this dir:
+  //   CRON_SECRET               (shared with the app's CRON_SECRET env)
+  //   CF_ACCESS_CLIENT_ID       (only if TARGET_URL is behind Cloudflare Access)
+  //   CF_ACCESS_CLIENT_SECRET   (only if TARGET_URL is behind Cloudflare Access)
+}

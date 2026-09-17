@@ -48,6 +48,19 @@ describe("guardReply — canned forbidden phrasings (strategy §7)", () => {
     expect(result.category).toBe("finance_opinion");
   });
 
+  const unapprovedBusinessClaim = [
+    "That's convenient for us as we have a dealership right here in town.",
+    "We're right here in town, so it's easy to arrange a viewing.",
+    "Good news — our showroom is near you.",
+    "That's close to you, so a viewing should be easy to arrange.",
+  ];
+
+  it.each(unapprovedBusinessClaim)("blocks unapproved business/proximity claim: %s", (text) => {
+    const result = guardReply(text);
+    expect(result.blocked).toBe(true);
+    expect(result.category).toBe("unapproved_business_claim");
+  });
+
   it("does not block compliant qualification copy", () => {
     const compliant = [
       "Thanks for reaching out! What's your rough budget for this purchase?",
@@ -55,6 +68,11 @@ describe("guardReply — canned forbidden phrasings (strategy §7)", () => {
       "Do you have a vehicle you're looking to trade in?",
       "When are you hoping to buy — this week, this month, or just browsing?",
       "That's a great question — it's not something I can confirm myself, so I've flagged it for the team.",
+      // A plain approved_facts.address disclosure must keep working — the
+      // guard only blocks unverifiable proximity claims about THIS buyer,
+      // not a factual statement of where the dealer is.
+      "We're located at 123 Main St, Christchurch — our hours are 9-5 weekdays.",
+      "Our dealership is at 45 Riccarton Rd if you'd like to pop in.",
     ];
     for (const text of compliant) {
       const result = guardReply(text);

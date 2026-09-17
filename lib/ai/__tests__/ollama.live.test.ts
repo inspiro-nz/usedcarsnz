@@ -42,6 +42,7 @@ describe.skipIf(!LIVE)(
         listingTitle: "2020 Ford Ranger Wildtrak",
         approvedFacts: {},
         qualificationSoFar: null,
+        targetTopic: "budget",
       });
 
       const { data } = await generateStructured(

@@ -1,4 +1,5 @@
 import type { ApprovedFacts, Qualification } from "@/lib/db/types";
+import type { QualifyOutput } from "@/lib/ai/schema";
 
 /**
  * Lane 1 — buyer-facing qualification chat (strategy §7, auto-sent).
@@ -22,6 +23,13 @@ export interface QualifySystemPromptInput {
   listingTitle: string | null;
   approvedFacts: ApprovedFacts;
   qualificationSoFar: Qualification | null;
+  /**
+   * The ONE topic the app has decided to ask about this turn, computed
+   * deterministically from qualificationSoFar (lib/ai/trigger.ts). The model
+   * does not get to pick the topic itself — that was the source of it
+   * re-asking an already-answered topic (confirmed live, 2026-09-12).
+   */
+  targetTopic: QualifyOutput["next_topic"];
 }
 
 export function buildQualifySystemPrompt(input: QualifySystemPromptInput): string {
@@ -41,13 +49,27 @@ export function buildQualifySystemPrompt(input: QualifySystemPromptInput): strin
         `If the buyer refers to a specific vehicle, treat it exactly like any other vehicle-specific question: defer it to the dealer (set needs_dealer=true).`,
       ].join("\n");
 
+  const topicLine =
+    input.targetTopic === "complete"
+      ? `Every qualification topic is covered. Warmly thank the buyer and let them know the team will be in touch — do NOT ask another qualification question.`
+      : `The ONLY topic to ask about this turn is: ${input.targetTopic}. Do not ask about, or jump ahead to, any other topic — the app is tracking what's already been covered, not you.`;
+
   return [
     intro,
     ``,
-    `YOUR ONLY JOB is to have a short, friendly qualification conversation and`,
-    `collect: budget, finance interest, trade-in, timeline, location, and buying`,
-    `intent. Ask about ONE topic per turn, in whatever order fits the`,
-    `conversation naturally.`,
+    `YOUR JOB is to have a short, professional, warm qualification`,
+    `conversation on behalf of ${seller}. ${topicLine}`,
+    ``,
+    `TONE — this reads as a real, courteous person representing a dealership,`,
+    `not a form:`,
+    `  - Never start consecutive replies with the same stock opener (e.g. do`,
+    `    not begin every message with "Thanks for..."). Vary it.`,
+    `  - Do not parrot the buyer's answer back at them verbatim (e.g. don't`,
+    `    say "You're looking to purchase within 2 weeks" — just acknowledge`,
+    `    briefly and move on).`,
+    `  - One short, natural sentence of acknowledgment (if there's something`,
+    `    to acknowledge) then your one question. No filler, no repetition of`,
+    `    the vehicle name unless it adds clarity.`,
     ``,
     `You may state these dealer facts verbatim if relevant, and NOTHING else`,
     `about the dealer or vehicle:`,
@@ -89,7 +111,7 @@ export function buildQualifySystemPrompt(input: QualifySystemPromptInput): strin
     `exactly this shape:`,
     `{`,
     `  "reply_text": string,        // what to say to the buyer next`,
-    `  "next_topic": "budget" | "finance" | "trade_in" | "timeline" | "location" | "intent" | "complete",`,
+    `  "next_topic": "${input.targetTopic}", // echo this back verbatim`,
     `  "fields": {                  // ONLY include what the buyer just told you`,
     `    "budget_nzd"?: number,`,
     `    "finance"?: "yes" | "no" | "unsure",`,

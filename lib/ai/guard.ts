@@ -11,11 +11,16 @@
  *  - vehicle condition / history / spec / "as described" claims
  *  - CGA / warranty statements in either direction
  *  - finance/insurance recommendation, comparison, opinion, suitability
+ *  - unapproved business claims (dealer premises/presence/logistics stated
+ *    as fact, beyond dealers.approved_facts) — added after a live test
+ *    (2026-09-12) caught a model inventing "we have a dealership right here
+ *    in town" for a buyer's stated location, a fabricated claim none of the
+ *    other three categories would have caught.
  */
 
 export interface GuardResult {
   blocked: boolean;
-  category?: "vehicle_condition" | "warranty_cga" | "finance_opinion";
+  category?: "vehicle_condition" | "warranty_cga" | "finance_opinion" | "unapproved_business_claim";
   matched?: string;
   safeText: string;
 }
@@ -69,6 +74,19 @@ const PATTERNS: Pattern[] = [
   { category: "finance_opinion", re: /\bapproval\s+is\s+likely\b/i },
   { category: "finance_opinion", re: /\binterest\s+rate\s+of\s+\d/i },
   { category: "finance_opinion", re: /\bsuitable\s+for\s+you\b/i },
+
+  // --- unapproved business claims: proximity/convenience to THIS buyer ---
+  // Deliberately narrow — approved_facts.address already covers a plain
+  // factual disclosure ("we're located at 123 Main St"), which must keep
+  // working, so this does NOT block location statements generally. It
+  // blocks the specific thing a model fabricates when a buyer mentions
+  // their own location: an unverifiable claim that the dealer is
+  // conveniently close to THAT buyer — nothing in approved_facts or the
+  // conversation lets the model know that, so it's always invented
+  // (confirmed live, 2026-09-12: "we have a dealership right here in town").
+  { category: "unapproved_business_claim", re: /\bright\s+here\s+in\s+town\b/i },
+  { category: "unapproved_business_claim", re: /\b(?:near|close\s+to)\s+you\b/i },
+  { category: "unapproved_business_claim", re: /\bconvenient\s+for\s+(?:us|you)\b/i },
 ];
 
 /**

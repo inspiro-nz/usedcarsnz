@@ -77,7 +77,15 @@ export default async function DealerDashboard() {
             {dealer.business_name}
           </h1>
           <div className="mt-1 flex items-center gap-2">
-            <Badge tone={dealer.status === "approved" ? "ok" : "pending"}>
+            <Badge
+              tone={
+                dealer.status === "approved"
+                  ? "ok"
+                  : dealer.status === "suspended" || dealer.status === "rejected"
+                    ? "danger"
+                    : "pending"
+              }
+            >
               {dealer.status}
             </Badge>
             {dealer.verified ? <Badge tone="ok">verified</Badge> : null}
@@ -97,7 +105,17 @@ export default async function DealerDashboard() {
         </div>
       </div>
 
-      {dealer.status !== "approved" ? (
+      {dealer.status === "suspended" ? (
+        <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+          Your dealership has been suspended — your listings are paused and
+          won&apos;t show to buyers. Contact us to resolve this.
+        </p>
+      ) : dealer.status === "rejected" ? (
+        <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+          Your dealership application was not approved. Contact us if you
+          think this is a mistake.
+        </p>
+      ) : dealer.status !== "approved" ? (
         <p className="mt-4 rounded-2xl border border-slate-100 bg-white shadow-sm p-4 text-sm text-slate-700">
           Your dealership is pending approval — you can prepare listings, and
           they&apos;ll go live once you&apos;re approved.

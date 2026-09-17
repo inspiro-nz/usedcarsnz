@@ -11,6 +11,7 @@ precedent. This is the single source of truth for what runs when.
 | `usedcarsnz-demo-keepalive` (`workers/keepalive`) | `0 12 * * *` (daily) | Inserts one `keepalive_ping` row so the free-tier **demo** Supabase project never pauses | Demo Supabase REST | `SUPABASE_SECRET_KEY` |
 | `usedcarsnz-outbox-sweep` (`workers/outbox-sweep`) | `*/15 * * * *` (every 15 min) | POSTs `/api/cron/outbox-sweep` → `sweepOutbox()` retries failed enquiry acks | App (`TARGET_URL`) | `CRON_SECRET` (+ `CF_ACCESS_*` if behind Access) |
 | `usedcarsnz-raw-email-purge` (`workers/raw-email-purge`) | `30 13 * * *` (daily) | POSTs `/api/cron/purge-raw-email` → deletes inbound raw MIME > 30 days via the storage API | App (`TARGET_URL`) | `CRON_SECRET` (+ `CF_ACCESS_*` if behind Access) |
+| `usedcarsnz-close-stale-leads` (`workers/close-stale-leads`) | `0 14 * * *` (daily) | POSTs `/api/cron/close-stale-leads` → `closeStaleLeads()` auto-closes leads (`new`/`contacted` only) with no buyer reply in 7 days | App (`TARGET_URL`) | `CRON_SECRET` (+ `CF_ACCESS_*` if behind Access) |
 
 Schedules are intentionally offset so they never collide.
 
@@ -41,6 +42,11 @@ wrangler secret put CRON_SECRET
 ```
 ```
 cd workers/raw-email-purge
+wrangler deploy
+wrangler secret put CRON_SECRET
+```
+```
+cd workers/close-stale-leads
 wrangler deploy
 wrangler secret put CRON_SECRET
 ```

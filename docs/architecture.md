@@ -18,7 +18,7 @@ GitHub renders the Mermaid blocks natively.*
 
 ## 1. System context
 
-Everything user-facing runs through the OpenNext app worker; four standalone
+Everything user-facing runs through the OpenNext app worker; five standalone
 Workers handle email ingestion and schedules. Supabase holds all state; Resend
 sends; Email Routing receives; Access walls the demo.
 
@@ -37,6 +37,7 @@ flowchart LR
         WKA["Worker: keepalive<br/>daily"]
         WOS["Worker: outbox-sweep<br/>every 15 min"]
         WRP["Worker: raw-email-purge<br/>daily"]
+        WCS["Worker: close-stale-leads<br/>daily"]
     end
 
     subgraph SB["Supabase"]
@@ -60,14 +61,19 @@ flowchart LR
     WKA -->|keepalive_ping insert| DB
     WOS -->|POST /api/cron/outbox-sweep| App
     WRP -->|POST /api/cron/purge-raw-email| App
+    WCS -->|POST /api/cron/close-stale-leads| App
     WEI --> Storage
 ```
 
 ## 2. The two AI lanes and the approve→send gate
 
 Lane 1's send path is deterministic — no LLM can delay or distort the sub-60s
-acknowledgment. Lane 2's LLM output can only ever become a buyer-visible
-message through the DB-enforced dealer approval gate.
+acknowledgment. Lane 2's output — whether AI-generated or a dealer's own
+free-text reply (`lib/leads.ts` `sendDealerReply()`, for when no AI draft is
+pending) — can only ever become a buyer-visible message through the same
+DB-enforced approval gate; a dealer composing their own reply is not a
+bypass, it stages a `pending` `ai_drafts` row and goes through
+`approve_draft()`/`sendApprovedReply()` identically.
 
 ```mermaid
 flowchart TB
@@ -78,10 +84,10 @@ flowchart TB
         OB["email_outbox<br/>(on send failure; swept every 15 min)"]
     end
 
-    subgraph L2["Lane 2 — LLM, draft-only"]
-        Q["Qualify (budget, finance,<br/>trade-in, timeline, intent)"]
+    subgraph L2["Lane 2 — LLM OR dealer free text, draft-only"]
+        Q["Qualify (budget, finance,<br/>trade-in, timeline) — deterministic<br/>topic order, model phrases + extracts"]
         G["guardReply claims-screen<br/>(lib/ai/guard.ts)"]
-        D["ai_drafts row, status = draft"]
+        D["ai_drafts row, status = pending<br/>(AI-generated OR dealer-composed —<br/>same gate either way)"]
     end
 
     GATE{"Dealer approves?<br/>approve_draft() — security definer;<br/>CHECK: approved requires<br/>approved_by AND approved_at"}
@@ -142,8 +148,8 @@ Secrets live in three places, set once each: the app worker
 (`wrangler secret put <NAME> --env demo`: `SUPABASE_SECRET_KEY`,
 `TURNSTILE_SECRET_KEY`, `RESEND_API_KEY`, `CRON_SECRET`, optional
 `ANTHROPIC_API_KEY` / `INBOUND_HMAC_SECRET`); each standalone worker (keepalive
-→ `SUPABASE_SECRET_KEY`; sweep/purge → `CRON_SECRET` + `CF_ACCESS_*`;
-email-inbound → `INBOUND_HMAC_SECRET`); and GitHub repo secrets for the deploy
+→ `SUPABASE_SECRET_KEY`; sweep/purge/close-stale-leads → `CRON_SECRET` +
+`CF_ACCESS_*`; email-inbound → `INBOUND_HMAC_SECRET`); and GitHub repo secrets for the deploy
 workflow (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, three
 `DEMO_NEXT_PUBLIC_*`). Names only here — values never appear in the repo.
 
@@ -159,15 +165,18 @@ flowchart LR
         KA["keepalive — 0 12 * * *<br/>(daily, ~midnight NZ)"]
         OS["outbox-sweep — */15 * * * *"]
         RP["raw-email-purge — 30 13 * * *"]
+        CS["close-stale-leads — 0 14 * * *"]
     end
 
     KA -->|"insert keepalive_ping<br/>(defeats 7-day free-tier pause)"| DSB[("Demo Supabase")]
 
     OS --> T{"TARGET_URL<br/>CI deploy: --var → demo host<br/>manual deploy: config default → prod"}
     RP --> T
+    CS --> T
     T -->|"Authorization: Bearer CRON_SECRET<br/>+ CF-Access-Client-Id / -Secret<br/>(service token through the Access wall)"| API["App /api/cron/*<br/>verifyCronRequest:<br/>constant-time compare,<br/>fails closed 503 if secret unset"]
     API -->|sweepOutbox: retry failed acks| DSB
     API -->|"purge raw MIME > 30 days<br/>(the /privacy retention mechanism)"| DSB
+    API -->|"closeStaleLeads: no buyer reply<br/>7+ days → status='closed'"| DSB
 ```
 
 Never set worker **vars** in the Cloudflare dashboard: `wrangler deploy` runs

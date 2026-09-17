@@ -188,6 +188,17 @@ export async function sendApprovedReply(input: {
     text: finalText,
   });
 
+  // The buyer/dealer thread (messages) is separate from ai_drafts (the
+  // approval staging area) and from lead_events (the audit log) — this is
+  // the one place a dealer-authored reply actually lands in the
+  // conversation the buyer sees on their thread page.
+  const { error: mErr } = await svc.from("messages").insert({
+    enquiry_id: input.enquiryId,
+    sender: "dealer",
+    body: finalText,
+  });
+  if (mErr) throw new Error(`attach reply to thread: ${mErr.message}`);
+
   const { error: uErr } = await svc
     .from("ai_drafts")
     .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -197,6 +208,46 @@ export async function sendApprovedReply(input: {
   await logLeadEvent(input.enquiryId, "reply_sent", "human", {
     draft_id: draft.id,
     channel: "email",
+  });
+}
+
+/**
+ * Dealer-composed free text reply, independent of any AI-generated draft —
+ * the portal previously had no way to send a follow-up once the one AI
+ * draft (if any) had been used. Reuses the EXACT SAME approval + send
+ * pipeline as an AI draft (approve_draft() RPC -> sendApprovedReply()) by
+ * staging the dealer's own text as a pending ai_drafts row first. That's not
+ * incidental: clients cannot INSERT into ai_drafts directly (RLS
+ * ai_drafts_insert is admin-only) and messages has no client insert policy
+ * at all — "dealer free text lands in messages only via the approved-draft
+ * send path" is a DB-enforced invariant (migration 11), not app convention.
+ * No draft_created event is logged: that event means "the AI produced
+ * something to review," which isn't true here.
+ */
+export async function sendDealerReply(input: {
+  enquiryId: string;
+  text: string;
+}): Promise<void> {
+  const trimmed = input.text.trim();
+  if (!trimmed) throw new Error("Reply cannot be empty.");
+
+  // Authorize with RLS before acting with the service client (this file's
+  // standard pattern) — the service client bypasses RLS, so the caller's
+  // right to write on this lead must be proven first, here.
+  await authorizeLeadAccess(input.enquiryId);
+
+  const svc = supabaseService();
+  const { data: draft, error: dErr } = await svc
+    .from("ai_drafts")
+    .insert({ enquiry_id: input.enquiryId, draft_text: trimmed, status: "pending" })
+    .select("id")
+    .single<{ id: string }>();
+  if (dErr || !draft) throw new Error(`stage reply: ${dErr?.message}`);
+
+  await approveAndSendDraft({
+    enquiryId: input.enquiryId,
+    draftId: draft.id,
+    editedText: trimmed,
   });
 }
 
@@ -228,7 +279,113 @@ export async function markSold(
     })
     .eq("id", enquiry.listing_id);
   await svc.from("enquiries").update({ status: "sold" }).eq("id", enquiryId);
+  await discardPendingDrafts(svc, enquiryId);
   await logLeadEvent(enquiryId, "marked_sold", "human", {
     ...(soldPrice != null ? { sold_price: soldPrice } : {}),
   });
+}
+
+/**
+ * Discards any still-pending AI draft on a lead that's being closed. Without
+ * this, closing a lead left its draft sitting in ai_drafts with
+ * status='pending' — still counted in the dealer dashboard's "N drafts
+ * awaiting approval" and still rendered as "awaiting your approval" on the
+ * lead page itself, even though the lead was closed (confirmed live,
+ * 2026-09-13). A discarded draft is not resurrected on reopen — the AI
+ * pipeline generates a fresh one if the conversation resumes and needs one.
+ */
+async function discardPendingDrafts(
+  svc: ReturnType<typeof supabaseService>,
+  enquiryId: string,
+): Promise<void> {
+  await svc
+    .from("ai_drafts")
+    .update({ status: "discarded" })
+    .eq("enquiry_id", enquiryId)
+    .eq("status", "pending");
+}
+
+/**
+ * Dealer manually closes a lead as not converted — the buyer went cold, or a
+ * booked viewing fell through. `closed` (enquiry_status) and `lead_closed`
+ * (lead_event_type) existed in the schema from the start but were never
+ * wired into any code path until this function and closeStaleLeads() below.
+ */
+export async function closeLead(enquiryId: string): Promise<void> {
+  const { enquiry } = await authorizeLeadAccess(enquiryId);
+  if (enquiry.status === "sold" || enquiry.status === "closed") {
+    throw new Error(`Lead is already ${enquiry.status} — nothing to close.`);
+  }
+  const svc = supabaseService();
+  await svc.from("enquiries").update({ status: "closed" }).eq("id", enquiryId);
+  await discardPendingDrafts(svc, enquiryId);
+  await logLeadEvent(enquiryId, "lead_closed", "human", { reason: "dealer_closed" });
+}
+
+/**
+ * Dealer manually reopens a lead they (or closeStaleLeads()) closed — for
+ * when the buyer comes back some other way (phone, email) that the timer
+ * can't see, or the close was a mistake. Buyer activity on the thread page
+ * reopens automatically instead (lib/ai/trigger.ts handleChatTurn); this is
+ * the manual counterpart so a closed lead is never a dead end in the portal.
+ */
+export async function reopenLead(enquiryId: string): Promise<void> {
+  const { enquiry } = await authorizeLeadAccess(enquiryId);
+  if (enquiry.status !== "closed") {
+    throw new Error(`Lead is ${enquiry.status}, not closed — nothing to reopen.`);
+  }
+  const svc = supabaseService();
+  await svc.from("enquiries").update({ status: "contacted" }).eq("id", enquiryId);
+  await logLeadEvent(enquiryId, "lead_reopened", "human", { reason: "dealer_reopened" });
+}
+
+const STALE_LEAD_DAYS = 7;
+
+/**
+ * Auto-closes leads the buyer has gone quiet on — no reply in
+ * STALE_LEAD_DAYS days — as "not sold". Deliberately skips `viewing_booked`:
+ * a booked viewing is a strong enough signal that it shouldn't auto-die just
+ * because the chat itself went quiet. "Buyer went quiet" is measured from the
+ * buyer's own activity only (their latest chat message, or their original
+ * enquiry if they never used the thread chat) — dealer activity alone does
+ * not reset the clock. Runs from the standalone close-stale-leads cron
+ * Worker via POST /api/cron/close-stale-leads (the app worker has no
+ * scheduled handler — see docs/architecture.md invariant 1).
+ */
+export async function closeStaleLeads(): Promise<{ closed: number }> {
+  const svc = supabaseService();
+  const cutoffMs = Date.now() - STALE_LEAD_DAYS * 24 * 60 * 60 * 1000;
+
+  // Pre-filter on the enquiry's own created_at: it can't have a buyer reply
+  // before it existed, so anything younger than the cutoff is never a
+  // candidate and this keeps the per-lead lookups below to a small set.
+  const { data: candidates, error } = await svc
+    .from("enquiries")
+    .select("id, created_at")
+    .in("status", ["new", "contacted"])
+    .lt("created_at", new Date(cutoffMs).toISOString());
+  if (error) throw new Error(`closeStaleLeads: ${error.message}`);
+
+  let closed = 0;
+  for (const enquiry of (candidates ?? []) as { id: string; created_at: string }[]) {
+    const { data: lastBuyerMessage } = await svc
+      .from("messages")
+      .select("created_at")
+      .eq("enquiry_id", enquiry.id)
+      .eq("sender", "buyer")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ created_at: string }>();
+
+    const lastBuyerActivityMs = new Date(lastBuyerMessage?.created_at ?? enquiry.created_at).getTime();
+    if (lastBuyerActivityMs >= cutoffMs) continue; // buyer has been active within the window
+
+    await svc.from("enquiries").update({ status: "closed" }).eq("id", enquiry.id);
+    await discardPendingDrafts(svc, enquiry.id);
+    await logLeadEvent(enquiry.id, "lead_closed", "system", {
+      reason: `no buyer reply in ${STALE_LEAD_DAYS} days`,
+    });
+    closed++;
+  }
+  return { closed };
 }

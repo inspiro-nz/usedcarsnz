@@ -25,6 +25,7 @@ describe("prompt-injection defence — buyer text is delimited, labelled as data
       listingTitle: "2019 Toyota Corolla",
       approvedFacts: {},
       qualificationSoFar: null,
+      targetTopic: "budget",
     });
     expect(system.toLowerCase()).toContain("untrusted data");
     expect(system).toContain("HARD RULES");
@@ -38,6 +39,7 @@ describe("qualify system prompt — listing-less lead names no vehicle (§7)", (
       listingTitle: "2019 Toyota Corolla",
       approvedFacts: {},
       qualificationSoFar: null,
+      targetTopic: "budget",
     });
     expect(system).toContain("enquired about: 2019 Toyota Corolla");
   });
@@ -48,6 +50,7 @@ describe("qualify system prompt — listing-less lead names no vehicle (§7)", (
       listingTitle: null,
       approvedFacts: {},
       qualificationSoFar: null,
+      targetTopic: "budget",
     });
     // Does not fabricate or reference a specific vehicle.
     expect(system).not.toContain("enquired about:");

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { approveAndSendDraft, bookViewing, markSold } from "@/lib/leads";
+import { approveAndSendDraft, bookViewing, closeLead, markSold, reopenLead, sendDealerReply } from "@/lib/leads";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export interface ActionState {
@@ -39,6 +39,23 @@ export async function approveDraftAction(
   }
 }
 
+/** Free-text compose, for when there's no AI draft waiting (see lib/leads.ts sendDealerReply). */
+export async function composeReplyAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await sendDealerReply({
+      enquiryId: String(formData.get("enquiry_id")),
+      text: String(formData.get("reply_text") ?? ""),
+    });
+    revalidatePath("/dealer/leads");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
 export async function bookViewingAction(formData: FormData): Promise<void> {
   await bookViewing(String(formData.get("enquiry_id")));
   revalidatePath("/dealer/leads");
@@ -52,6 +69,16 @@ export async function markSoldAction(formData: FormData): Promise<void> {
   );
   revalidatePath("/dealer/leads");
   revalidateListings(); // the sold listing's public page must reflect it
+}
+
+export async function closeLeadAction(formData: FormData): Promise<void> {
+  await closeLead(String(formData.get("enquiry_id")));
+  revalidatePath("/dealer/leads");
+}
+
+export async function reopenLeadAction(formData: FormData): Promise<void> {
+  await reopenLead(String(formData.get("enquiry_id")));
+  revalidatePath("/dealer/leads");
 }
 
 /** Create a listing AS THE CALLER — RLS proves dealer membership. */

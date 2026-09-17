@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { supabaseService } from "@/lib/supabase/service";
-import type { EnquiryRow } from "@/lib/db/types";
+import type { EnquiryRow, MessageRow } from "@/lib/db/types";
+import { ThreadChat } from "./thread-chat";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Your enquiry" };
 
 /**
- * Placeholder buyer thread page (brief: "route can be a placeholder page
- * this session"). The ack email links here; a later session (ai-service)
- * replaces this with the live AI qualification chat.
+ * The buyer thread page — the link the ack email sends them to ("You can
+ * follow the conversation here any time"). Loads the real message history
+ * (buyer/ai/dealer, chronological) and hands it to ThreadChat so the buyer
+ * sees the same conversation the dealer sees on /dealer/leads/[id], AI
+ * replies and dealer replies alike, and can keep chatting with the AI from
+ * where they left off.
  *
  * Capability-URL model, deliberately: enquiries_select RLS only grants to
  * `authenticated` buyers whose buyer_user_id matches, but most buyers submit
@@ -27,24 +31,67 @@ export default async function ThreadPage({
   const sb = supabaseService();
   const { data: enquiry } = await sb
     .from("enquiries")
-    .select("id, buyer_name, created_at")
+    .select("*")
     .eq("id", id)
-    .maybeSingle<Pick<EnquiryRow, "id" | "buyer_name" | "created_at">>();
+    .maybeSingle<EnquiryRow>();
   if (!enquiry) notFound();
 
+  // Dealer name for ThreadChat's "AI assistant of {dealer}" label — same
+  // listing-backed vs listing-less split as lib/ai/trigger.ts's loadContext.
+  let dealerName: string | null = null;
+  if (enquiry.listing_id) {
+    const { data: listing } = await sb
+      .from("listings")
+      .select("dealer_id")
+      .eq("id", enquiry.listing_id)
+      .maybeSingle<{ dealer_id: string | null }>();
+    if (listing?.dealer_id) {
+      const { data: dealer } = await sb
+        .from("dealers")
+        .select("business_name")
+        .eq("id", listing.dealer_id)
+        .maybeSingle<{ business_name: string }>();
+      dealerName = dealer?.business_name ?? null;
+    }
+  } else if (enquiry.dealer_id) {
+    const { data: dealer } = await sb
+      .from("dealers")
+      .select("business_name")
+      .eq("id", enquiry.dealer_id)
+      .maybeSingle<{ business_name: string }>();
+    dealerName = dealer?.business_name ?? null;
+  }
+
+  const { data: messages } = await sb
+    .from("messages")
+    .select("*")
+    .eq("enquiry_id", id)
+    .order("created_at", { ascending: true });
+
+  const initialMessages = ((messages ?? []) as MessageRow[]).map((m) => ({
+    id: m.id,
+    sender: m.sender,
+    body: m.body,
+    createdAt: m.created_at,
+  }));
+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16 text-center">
-      <p className="text-xs font-semibold uppercase tracking-widest text-orange-600">
-        AI assistant
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-        Thanks, {enquiry.buyer_name} — we&apos;ve got your enquiry.
-      </h1>
-      <p className="mt-3 text-sm text-slate-600">
-        A team member will follow up with you personally. This page will soon
-        let you chat with our AI assistant to help the seller get back to you
-        faster — check back shortly.
-      </p>
+    <main className="mx-auto max-w-2xl px-4 py-8">
+      <div className="mb-4 text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-orange-600">
+          AI assistant
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+          Thanks, {enquiry.buyer_name} — here&apos;s your conversation.
+        </h1>
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <ThreadChat
+          enquiryId={enquiry.id}
+          dealerName={dealerName}
+          initialMessages={initialMessages}
+        />
+      </div>
     </main>
   );
 }

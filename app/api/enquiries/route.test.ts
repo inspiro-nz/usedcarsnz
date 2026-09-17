@@ -10,6 +10,7 @@ const {
   triggerQualificationMock,
   waitUntilMock,
   serverInsertMock,
+  serverEnv,
 } = vi.hoisted(() => ({
   checkRateLimitMock: vi.fn(() => true),
   honeypotTrippedMock: vi.fn(() => false),
@@ -20,6 +21,11 @@ const {
   triggerQualificationMock: vi.fn(async () => {}),
   waitUntilMock: vi.fn(),
   serverInsertMock: vi.fn(),
+  // Mutable so individual tests can model an unconfigured / production env.
+  serverEnv: { TURNSTILE_SECRET_KEY: "test-secret", NEXT_PUBLIC_APP_ENV: "local" } as {
+    TURNSTILE_SECRET_KEY: string;
+    NEXT_PUBLIC_APP_ENV: string;
+  },
 }));
 
 // Chainable, awaitable mock so both `.insert(x).select(y).single()` and a
@@ -59,6 +65,7 @@ vi.mock("@/lib/ai/trigger", () => ({ triggerQualification: triggerQualificationM
 
 vi.mock("@/lib/env", () => ({
   getClientEnv: () => ({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000" }),
+  getServerEnv: () => ({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000", ...serverEnv }),
 }));
 
 vi.mock("@opennextjs/cloudflare", () => ({
@@ -85,6 +92,10 @@ vi.mock("@/lib/supabase/service", () => ({
       }
       if (table === "dealers") {
         return makeChain({ data: null, error: null });
+      }
+      if (table === "enquiries") {
+        // Service-side read-back of the just-inserted row's created_at.
+        return makeChain({ data: { created_at: new Date().toISOString() }, error: null });
       }
       return makeChain({ data: null, error: null });
     }),
@@ -122,6 +133,8 @@ beforeEach(() => {
   triggerQualificationMock.mockReset();
   waitUntilMock.mockReset();
   serverInsertMock.mockReset();
+  serverEnv.TURNSTILE_SECRET_KEY = "test-secret";
+  serverEnv.NEXT_PUBLIC_APP_ENV = "local";
 });
 
 describe("POST /api/enquiries", () => {
@@ -131,7 +144,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request({ ...validBody, website: "http://spam.example" }));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
@@ -142,7 +155,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(429);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.error).toBeTruthy();
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
@@ -153,8 +166,32 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.error).toBeTruthy();
+    expect(serverInsertMock).not.toHaveBeenCalled();
+  });
+
+  it("turnstile not configured + non-production: skips verification, enquiry succeeds even with an empty token", async () => {
+    serverEnv.TURNSTILE_SECRET_KEY = "";
+    serverEnv.NEXT_PUBLIC_APP_ENV = "local";
+
+    const res = await POST(request({ ...validBody, token: "" }));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok?: boolean };
+    expect(body.ok).toBe(true);
+    expect(verifyTurnstileMock).not.toHaveBeenCalled();
+    expect(serverInsertMock).toHaveBeenCalled();
+  });
+
+  it("turnstile not configured + production: fails closed with 503, writes no enquiry row", async () => {
+    serverEnv.TURNSTILE_SECRET_KEY = "";
+    serverEnv.NEXT_PUBLIC_APP_ENV = "production";
+
+    const res = await POST(request({ ...validBody, token: "" }));
+
+    expect(res.status).toBe(503);
+    expect(verifyTurnstileMock).not.toHaveBeenCalled();
     expect(serverInsertMock).not.toHaveBeenCalled();
   });
 
@@ -171,7 +208,7 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
     expect(insertOutboxRowMock).toHaveBeenCalledTimes(1);
     expect(emitLeadEventMock).not.toHaveBeenCalledWith(
@@ -183,13 +220,19 @@ describe("POST /api/enquiries", () => {
     const res = await POST(request(validBody));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { ok?: boolean; error?: string; enquiryId?: string };
     expect(body.ok).toBe(true);
-    expect(body.enquiryId).toBe("enquiry-1");
+
+    // The route generates the enquiry id (anon can't read it back — see route
+    // comment) and echoes that same id back and into the ack_sent event.
+    const insertedId = (serverInsertMock.mock.calls[0]?.[0] as { id: string }).id;
+    expect(typeof insertedId).toBe("string");
+    expect(insertedId.length).toBeGreaterThan(0);
+    expect(body.enquiryId).toBe(insertedId);
 
     expect(emitLeadEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        leadId: "enquiry-1",
+        leadId: insertedId,
         eventType: "ack_sent",
         actor: "ai",
         metadata: expect.objectContaining({

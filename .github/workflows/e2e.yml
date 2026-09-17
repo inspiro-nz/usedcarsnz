@@ -1,0 +1,129 @@
+name: E2E
+
+# Browser E2E (Playwright) against an EPHEMERAL Supabase stack that the Supabase
+# CLI boots inside this runner (DB + Auth + REST + Storage). Nothing cloud is
+# ever touched: this job must NEVER point at demo or prod. The Supabase keys
+# exported below are the CLI's public local-dev defaults (not secrets), and the
+# E2E sign-in credentials are throwaway values that only exist inside this
+# job's stack — both are deliberately plain env, not repo secrets.
+#
+# AI safety: no live AI provider is reachable from this job. lib/env.ts only
+# allows workers-ai | anthropic (there is no env-selectable mock adapter — the
+# Vitest suite mocks at module level instead). workers-ai needs the Cloudflare
+# AI binding, whose remote proxy cannot start on this runner (wrangler is
+# unauthenticated — "You must be logged in"; under `next start` the lane logs
+# "[ai:*] generation failed ... using safe path" and fails closed, verified
+# locally); anthropic needs ANTHROPIC_API_KEY, which this workflow never sets.
+# The money-shot spec seeds its own draft rather than generating one.
+#
+# Server decision: PRODUCTION server. playwright.config.ts's webServer runs
+# `npm run build && npm run start` (PROMPT-11). CI was on `next dev` from T1
+# until then because prod-mode caught a real bug it could not get past — the
+# ISR listing-detail page 500'd ("Page changed from static to dynamic at
+# runtime, reason: cookies") because the marketplace layout's header read
+# auth cookies. That read now lives behind a client fetch (/api/viewer), the
+# dealer storefront is ISR too, and the suite asserts both routes return
+# x-nextjs-cache: HIT on a second request — an assertion `next dev` can never
+# satisfy, which is the point: this class of bug cannot hide behind the dev
+# server again. The build happens inside the Playwright step, AFTER the
+# Supabase keys below are exported into $GITHUB_ENV, so NEXT_PUBLIC_* are
+# present when `next build` inlines them.
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+# One run per PR/branch; a new push supersedes the in-flight run.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_APP_ENV: local
+      # Throwaway creds for the ephemeral stack's auto-seeded sign-in user
+      # (scripts/ensure-e2e-user.ts). Plain env on purpose — see header.
+      E2E_TEST_EMAIL: e2e-ci@example.com
+      E2E_TEST_PASSWORD: e2e-ci-throwaway-Passw0rd
+      # Money-shot dealer fixture (e2e/money-shot.spec.ts): e2e:setup
+      # provisions this user as OWNER of the self-contained E2E dealership.
+      E2E_DEALER_EMAIL: e2e-ci-dealer@example.com
+      E2E_DEALER_PASSWORD: e2e-ci-dealer-throwaway-Passw0rd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # 22, not ci.yml's 20: scripts/ensure-e2e-user.ts creates a
+          # supabase-js client, and @supabase/realtime-js needs the native
+          # WebSocket that ships in Node 22+ (Node 20 dies with "native
+          # WebSocket not found"). next@16.2's engines floor is >= 20.9.0,
+          # so 22 satisfies the app too.
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v3
+
+      - name: Start ephemeral Supabase stack
+        run: supabase start
+
+      - name: Reset database (migrations + seed.sql)
+        # Redundant on a pristine runner (start already migrates + seeds), but
+        # guarantees a deterministic schema even if start's behaviour or the
+        # runner image ever changes. Cheap belt-and-braces.
+        run: supabase db reset
+
+      - name: Export local stack keys into env
+        # Public local-dev defaults, not secrets. stdout of `status -o json` is
+        # clean JSON (warnings go to stderr).
+        run: |
+          STATUS=$(supabase status -o json)
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(echo "$STATUS" | jq -er .API_URL)"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(echo "$STATUS" | jq -er .PUBLISHABLE_KEY)"
+            echo "SUPABASE_SECRET_KEY=$(echo "$STATUS" | jq -er .SECRET_KEY)"
+          } >> "$GITHUB_ENV"
+
+      - name: Seed E2E sign-in user
+        # Hard-guarded to local URLs inside the script itself.
+        run: npm run e2e:setup
+
+      - name: Seed demo listings
+        # Hard-guarded local/demo (scripts/demo-data.ts assertDemoTarget); gives
+        # the marketplace specs real listings so the detail test doesn't skip.
+        run: npm run seed:demo
+
+      - name: DB invariants, RLS deny-matrix, demo:reset idempotency
+        # PROMPT-T2 + T3: proves what the database REFUSES — lead_events
+        # immutability for every role incl. the owner, the ai_drafts approval
+        # state machine, the anon/dealer-A/dealer-B RLS deny-matrix — plus the
+        # demo:reset double-run safety. Same booted stack, no second supabase
+        # start. Env-gated: these same tests SKIP in ci.yml's stackless gate.
+        run: npx vitest run tests
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        # playwright.config.ts's webServer runs `next build` + `next start` —
+        # the PRODUCTION server (see header). The Supabase keys exported above
+        # are in this step's env, so the build inlines the NEXT_PUBLIC_* vars.
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

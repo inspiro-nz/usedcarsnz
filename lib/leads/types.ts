@@ -68,6 +68,10 @@ export interface LeadClosedMeta {
   reason?: string;
 }
 
+export interface LeadReopenedMeta {
+  reason?: string;
+}
+
 export interface GuardBlockedMeta {
   category: "vehicle_condition" | "warranty_cga" | "finance_opinion" | null;
 }
@@ -90,6 +94,7 @@ interface LeadEventMetaMap {
   appointment_booked: AppointmentBookedMeta;
   marked_sold: MarkedSoldMeta;
   lead_closed: LeadClosedMeta;
+  lead_reopened: LeadReopenedMeta;
 }
 
 // Compile-time proof every LeadEventType has a metadata entry above: fails to

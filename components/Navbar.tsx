@@ -1,42 +1,42 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { navLinks } from '@/lib/nav'
 import { supabaseBrowser } from '@/lib/supabase/browser'
+import { SIGNED_OUT, type ViewerSummary } from '@/lib/viewer-summary'
 
 /**
  * Auth state is checked client-side (not via a server prop) so the homepage
  * stays statically prerendered — it's the conversion-critical landing page,
  * and a per-request Supabase round trip here would cost every visitor,
- * signed in or not, just to light up two nav links.
+ * signed in or not, just to light up the nav.
+ *
+ * Fetches GET /api/viewer — the same role-shape endpoint the marketplace
+ * header (components/marketplace/header-auth-nav.tsx) uses — rather than
+ * checking only whether a session exists. A signed-in dealer landing back on
+ * this page (e.g. clicking the logo) previously saw a generic buyer "My
+ * account" link with no way back to their dealer dashboard; role is now known
+ * here too, so the link goes to the right place.
  */
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const [signedIn, setSignedIn] = useState(false)
+  const [viewer, setViewer] = useState<ViewerSummary>(SIGNED_OUT)
 
   useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-
-    if (!supabaseUrl || !publishableKey) {
-      return
-    }
-
-    let active = true
-
-    void (async () => {
-      try {
-        const { data } = await supabaseBrowser().auth.getSession()
-        if (active) setSignedIn(!!data.session)
-      } catch {
-        if (active) setSignedIn(false)
-      }
-    })()
-
-    return () => {
-      active = false
-    }
+    const controller = new AbortController()
+    fetch('/api/viewer', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal })
+      .then((res) => (res.ok ? (res.json() as Promise<ViewerSummary>) : SIGNED_OUT))
+      .then((v) => setViewer(v))
+      .catch(() => {
+        if (!controller.signal.aborted) setViewer(SIGNED_OUT)
+      })
+    return () => controller.abort()
   }, [])
+
+  const { signedIn, isDealer, isAdmin } = viewer
+  const homeHref = isAdmin ? '/admin' : isDealer ? '/dealer' : '/account'
+  const homeLabel = isAdmin ? 'Admin' : isDealer ? 'Dashboard' : 'My account'
 
   useEffect(() => {
     if (!isOpen) return
@@ -70,16 +70,22 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
+            <Link
+              href="/cars"
+              className="text-sm text-slate-600 hover:text-slate-900 transition-colors font-medium"
+            >
+              Browse cars
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
             {signedIn ? (
               <>
                 <a
-                  href="/account"
+                  href={homeHref}
                   className="hidden sm:inline-flex items-center text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
                 >
-                  My account
+                  {homeLabel}
                 </a>
                 <button
                   onClick={signOut}
@@ -143,14 +149,21 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
+            <Link
+              href="/cars"
+              onClick={() => setIsOpen(false)}
+              className="px-2 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
+            >
+              Browse cars
+            </Link>
             {signedIn ? (
               <>
                 <a
-                  href="/account"
+                  href={homeHref}
                   onClick={() => setIsOpen(false)}
                   className="px-2 py-2.5 text-slate-600 hover:text-slate-900 text-sm font-medium transition-colors"
                 >
-                  My account
+                  {homeLabel}
                 </a>
                 <button
                   onClick={() => {

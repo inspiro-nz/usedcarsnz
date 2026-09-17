@@ -1,12 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { approveAndSendDraft, bookViewing, markSold } from "@/lib/leads";
+import { approveAndSendDraft, bookViewing, closeLead, markSold, reopenLead, sendDealerReply } from "@/lib/leads";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export interface ActionState {
   ok: boolean;
   error?: string;
+}
+
+// The public listing detail page AND the dealer storefront are ISR-cached
+// (revalidate = 300). Any listing mutation (create / status change / mark-sold)
+// invalidates ALL instances of both on demand, so neither the demo nor a real
+// dealer's storefront shows a stale price/status/stock count. Passing the route
+// pattern with "page" revalidates every dynamic instance without having to
+// reconstruct each listing's or dealer's exact URL.
+const LISTING_DETAIL_ROUTE = "/cars/[make]/[model]/[year]/[id]";
+const DEALER_STOREFRONT_ROUTE = "/dealers/[id]";
+function revalidateListings() {
+  revalidatePath(LISTING_DETAIL_ROUTE, "page");
+  revalidatePath(DEALER_STOREFRONT_ROUTE, "page");
 }
 
 export async function approveDraftAction(
@@ -26,6 +39,23 @@ export async function approveDraftAction(
   }
 }
 
+/** Free-text compose, for when there's no AI draft waiting (see lib/leads.ts sendDealerReply). */
+export async function composeReplyAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    await sendDealerReply({
+      enquiryId: String(formData.get("enquiry_id")),
+      text: String(formData.get("reply_text") ?? ""),
+    });
+    revalidatePath("/dealer/leads");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
 export async function bookViewingAction(formData: FormData): Promise<void> {
   await bookViewing(String(formData.get("enquiry_id")));
   revalidatePath("/dealer/leads");
@@ -37,6 +67,17 @@ export async function markSoldAction(formData: FormData): Promise<void> {
     String(formData.get("enquiry_id")),
     Number.isFinite(raw) && raw > 0 ? raw : null,
   );
+  revalidatePath("/dealer/leads");
+  revalidateListings(); // the sold listing's public page must reflect it
+}
+
+export async function closeLeadAction(formData: FormData): Promise<void> {
+  await closeLead(String(formData.get("enquiry_id")));
+  revalidatePath("/dealer/leads");
+}
+
+export async function reopenLeadAction(formData: FormData): Promise<void> {
+  await reopenLead(String(formData.get("enquiry_id")));
   revalidatePath("/dealer/leads");
 }
 
@@ -78,6 +119,7 @@ export async function createListingAction(
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/dealer/listings");
+  revalidateListings(); // surface the new listing on its public detail page
   return { ok: true };
 }
 
@@ -88,4 +130,5 @@ export async function setListingStatusAction(formData: FormData): Promise<void> 
   if (!["active", "paused"].includes(status)) return;
   await sb.from("listings").update({ status }).eq("id", id); // RLS-gated
   revalidatePath("/dealer/listings");
+  revalidateListings(); // pause/reactivate must reflect on the public page
 }

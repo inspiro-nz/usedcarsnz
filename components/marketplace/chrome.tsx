@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { getViewer } from "@/lib/auth";
-import { signOutAction } from "@/app/(marketplace)/(auth)/actions";
+import { HeaderAuthNav } from "./header-auth-nav";
+import { NavLink } from "./nav-link";
 
 /**
  * Marketplace chrome. The homepage keeps its own Navbar/Footer untouched —
  * these mirror that design (white/95 blur header, slate-950 footer, orange
  * CTA) but link to real marketplace routes instead of homepage hash anchors.
- * Server components: the header is auth-aware via an RLS-scoped read.
+ *
+ * The header is a STATIC shell: logo, Browse cars, and — via HeaderAuthNav —
+ * the logged-out CTAs by default, upgraded client-side once GET /api/viewer
+ * answers. It must never read cookies/headers itself: this layout wraps the
+ * ISR routes (listing detail, dealer storefront), and any request-state read
+ * here forces them dynamic under a production build (a 500, not a fallback).
  */
 
-export async function MarketplaceHeader() {
-  const viewer = await getViewer().catch(() => null);
-  const dealer = viewer?.dealers[0] ?? null;
-
+export function MarketplaceHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -23,52 +25,11 @@ export async function MarketplaceHeader() {
 
           <nav className="flex min-w-0 items-center gap-1 overflow-x-auto sm:gap-2">
             <NavLink href="/cars">Browse cars</NavLink>
-            {dealer ? <NavLink href="/dealer">Dashboard</NavLink> : null}
-            {viewer?.isAdmin ? <NavLink href="/admin">Admin</NavLink> : null}
-            {!viewer ? (
-              <>
-                <NavLink href="/sign-in">Sign in</NavLink>
-                <Link
-                  href="/register-dealer"
-                  className="inline-flex shrink-0 items-center rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-600"
-                >
-                  List with us
-                </Link>
-              </>
-            ) : (
-              <>
-                {!dealer ? (
-                  <NavLink href="/register-dealer">List with us</NavLink>
-                ) : null}
-                <NavLink href="/account">My account</NavLink>
-                <form action={signOutAction} className="inline shrink-0">
-                  <button className="whitespace-nowrap px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:px-3">
-                    Sign out
-                  </button>
-                </form>
-              </>
-            )}
+            <HeaderAuthNav />
           </nav>
         </div>
       </div>
     </header>
-  );
-}
-
-function NavLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="whitespace-nowrap px-2.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:px-3"
-    >
-      {children}
-    </Link>
   );
 }
 
@@ -134,7 +95,12 @@ export function MarketplaceFooter() {
 
         <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-slate-800 pt-6 text-xs sm:flex-row">
           <p>&copy; {year} UsedCarsNZ. All rights reserved.</p>
-          <p>Built for New Zealand dealerships.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition-colors hover:text-white">
+              Privacy
+            </Link>
+            <p>Built for New Zealand dealerships.</p>
+          </div>
         </div>
       </div>
     </footer>

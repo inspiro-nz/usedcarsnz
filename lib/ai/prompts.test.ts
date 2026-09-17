@@ -25,9 +25,44 @@ describe("prompt-injection defence — buyer text is delimited, labelled as data
       listingTitle: "2019 Toyota Corolla",
       approvedFacts: {},
       qualificationSoFar: null,
+      targetTopic: "budget",
     });
     expect(system.toLowerCase()).toContain("untrusted data");
     expect(system).toContain("HARD RULES");
+  });
+});
+
+describe("qualify system prompt — listing-less lead names no vehicle (§7)", () => {
+  it("with a listing: opening line is unchanged and names the vehicle", () => {
+    const system = buildQualifySystemPrompt({
+      dealerName: "Test Motors",
+      listingTitle: "2019 Toyota Corolla",
+      approvedFacts: {},
+      qualificationSoFar: null,
+      targetTopic: "budget",
+    });
+    expect(system).toContain("enquired about: 2019 Toyota Corolla");
+  });
+
+  it("without a listing: states it does not know the vehicle, invents none, keeps the compliance envelope", () => {
+    const system = buildQualifySystemPrompt({
+      dealerName: "Test Motors",
+      listingTitle: null,
+      approvedFacts: {},
+      qualificationSoFar: null,
+      targetTopic: "budget",
+    });
+    // Does not fabricate or reference a specific vehicle.
+    expect(system).not.toContain("enquired about:");
+    expect(system).not.toMatch(/\b(Toyota|Corolla|Ford|Ranger|Hilux)\b/);
+    // Explicitly tells the model it has no vehicle and must not invent one.
+    expect(system).toContain("do NOT know which specific vehicle");
+    expect(system).toMatch(/NEVER name, guess, describe/);
+    // Compliance envelope is intact regardless of the listing.
+    expect(system).toContain("HARD RULES");
+    expect(system.toLowerCase()).toContain("untrusted data");
+    // Still qualifies on the non-vehicle topics.
+    expect(system.toLowerCase()).toContain("budget");
   });
 });
 

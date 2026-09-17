@@ -8,7 +8,7 @@ import { QualifyOutputSchema, type QualifyOutput } from "@/lib/ai/schema";
 import { guardReply, type GuardResult } from "@/lib/ai/guard";
 import { QUALIFY_PROMPT_VERSION, buildQualifySystemPrompt, buildQualifyUserTurn } from "@/lib/ai/prompts/qualify.v1";
 import { generateDraft } from "@/lib/ai/generate-draft";
-import type { DealerRow, EnquiryRow, ListingRow, LeadEventType } from "@/lib/db/types";
+import type { DealerRow, EnquiryRow, ListingRow, LeadEventType, Qualification } from "@/lib/db/types";
 
 /**
  * Lane 1 — buyer-facing qualification chat (strategy §7).
@@ -41,7 +41,8 @@ export interface ChatTurnResult {
 
 interface TurnContext {
   enquiry: EnquiryRow;
-  listing: ListingRow;
+  /** NULL for listing-less inbound-email leads (§5.3) — dealer comes from the enquiry instead. */
+  listing: ListingRow | null;
   dealer: DealerRow | null;
 }
 
@@ -67,17 +68,33 @@ async function loadContext(
     .single<EnquiryRow>();
   if (eErr || !enquiry) throw new Error(`enquiry not found: ${eErr?.message}`);
 
-  const { data: listing, error: lErr } = await svc
-    .from("listings")
-    .select("*")
-    .eq("id", enquiry.listing_id)
-    .single<ListingRow>();
-  if (lErr || !listing) throw new Error(`listing not found: ${lErr?.message}`);
-
+  let listing: ListingRow | null = null;
   let dealer: DealerRow | null = null;
-  if (listing.dealer_id) {
-    const { data } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
-    dealer = data ?? null;
+
+  if (enquiry.listing_id) {
+    // Platform-form lead: the listing is authoritative, and the dealer is
+    // derived from it (unchanged path).
+    const { data, error: lErr } = await svc
+      .from("listings")
+      .select("*")
+      .eq("id", enquiry.listing_id)
+      .single<ListingRow>();
+    if (lErr || !data) throw new Error(`listing not found: ${lErr?.message}`);
+    listing = data;
+    if (listing.dealer_id) {
+      const { data: d } = await svc.from("dealers").select("*").eq("id", listing.dealer_id).single<DealerRow>();
+      dealer = d ?? null;
+    }
+  } else if (enquiry.dealer_id) {
+    // Listing-less inbound-email lead (§5.3): alias-routed straight to a dealer.
+    // There is no vehicle to load — qualify on the non-vehicle topics using the
+    // dealer context that set_enquiry_denorm put on the enquiry.
+    const { data: d } = await svc.from("dealers").select("*").eq("id", enquiry.dealer_id).single<DealerRow>();
+    dealer = d ?? null;
+  } else {
+    // Neither a listing nor a dealer: there is genuinely nothing to qualify
+    // against. Throw so the caller's safe-handoff path owns it.
+    throw new Error(`enquiry ${enquiryId} has neither a listing nor a dealer`);
   }
 
   return { enquiry, listing, dealer };
@@ -87,15 +104,57 @@ function listingTitle(listing: ListingRow): string {
   return listing.title ?? [listing.year, listing.make, listing.model, listing.variant].filter(Boolean).join(" ");
 }
 
+/**
+ * Canonical topic order (strategy §7's budget/finance/trade-in/timeline/
+ * location list). Control flow — which ONE topic gets asked this turn — is
+ * decided HERE, from the qualification row already on the DB, rather than
+ * left to the model's own read of a "known so far" text summary: a small,
+ * fast model re-deciding topic order from scratch every turn is exactly
+ * what produced the same question being asked 2-3 times in a row in
+ * practice (confirmed live, 2026-09-12). The model still gets to phrase the
+ * question and extract the answer, just not to pick which topic is next.
+ */
+const TOPIC_ORDER: ReadonlyArray<{ topic: QualifyOutput["next_topic"]; field: keyof Qualification }> = [
+  { topic: "budget", field: "budget_nzd" },
+  { topic: "finance", field: "finance" },
+  { topic: "trade_in", field: "trade_in" },
+  { topic: "timeline", field: "timeline" },
+  { topic: "location", field: "location" },
+];
+
+function nextMissingTopic(q: Qualification | null): QualifyOutput["next_topic"] {
+  for (const { topic, field } of TOPIC_ORDER) {
+    if (q?.[field] == null) return topic;
+  }
+  return "complete";
+}
+
+/**
+ * Deterministic fallback for a plain yes/no reply to a yes/no topic
+ * (finance, trade_in). The model's own structured extraction missed bare
+ * answers like "yes i am" in practice; this catches the common phrasings a
+ * regex can safely own, without touching anything the model already
+ * extracted (only fills the field if the model left it blank).
+ */
+function fallbackYesNo(topic: QualifyOutput["next_topic"], buyerMessage: string): "yes" | "no" | null {
+  if (topic !== "finance" && topic !== "trade_in") return null;
+  const text = buyerMessage.trim().toLowerCase();
+  if (/^(yes|yeah|yep|yup|sure|definitely|please|ok|okay|correct)\b/.test(text)) return "yes";
+  if (/^(no|nope|nah|not really|not interested)\b/.test(text)) return "no";
+  return null;
+}
+
 /** Runs one qualify-lane turn. Never throws — any failure resolves to the safe-path outcome. */
 async function runQualifyTurn(ctx: TurnContext, buyerMessage: string): Promise<TurnOutcome> {
+  const targetTopic = nextMissingTopic(ctx.enquiry.qualification);
   try {
     const provider = getProvider("qualify");
     const system = buildQualifySystemPrompt({
       dealerName: ctx.dealer?.business_name ?? null,
-      listingTitle: listingTitle(ctx.listing),
+      listingTitle: ctx.listing ? listingTitle(ctx.listing) : null,
       approvedFacts: ctx.dealer?.approved_facts ?? {},
       qualificationSoFar: ctx.enquiry.qualification,
+      targetTopic,
     });
     const { data, result } = await generateStructured(
       provider,
@@ -111,13 +170,21 @@ async function runQualifyTurn(ctx: TurnContext, buyerMessage: string): Promise<T
     const needsDealer = data.needs_dealer || guard.blocked;
     const dealerQuestion = guard.blocked ? (data.dealer_question ?? buyerMessage) : (data.dealer_question ?? null);
 
+    const fallback = fallbackYesNo(targetTopic, buyerMessage);
+    const fields =
+      fallback && data.fields[targetTopic === "finance" ? "finance" : "trade_in"] == null
+        ? { ...data.fields, [targetTopic === "finance" ? "finance" : "trade_in"]: fallback }
+        : data.fields;
+
     return {
       replyText: guard.safeText,
       guard,
       needsDealer,
       dealerQuestion,
-      nextTopic: data.next_topic,
-      fields: data.fields,
+      // Owned by app code, not echoed from the model (see targetTopic above) —
+      // this is what completeTurn/mergeQualification and the "done" flag key off.
+      nextTopic: targetTopic,
+      fields,
       provider: result.provider,
       model: result.model,
     };
@@ -226,6 +293,23 @@ export async function triggerQualification(enquiryId: string): Promise<void> {
 export async function handleChatTurn(enquiryId: string, buyerMessage: string): Promise<ChatTurnResult> {
   const svc = supabaseService();
   const ctx = await loadContext(svc, enquiryId);
+
+  // Persist the buyer's own turn BEFORE the AI's reply, so both the dealer
+  // lead page and the buyer's own thread page show the real back-and-forth —
+  // previously only the AI's replies ever landed in `messages`, so a
+  // dealer reading the conversation could see the AI's answers but never
+  // what the buyer had actually said to prompt them.
+  await svc.from("messages").insert({ enquiry_id: enquiryId, sender: "buyer", body: buyerMessage });
+  await logLeadEvent(enquiryId, "buyer_message_received", "system", {});
+
+  // A buyer replying on a lead that was closed (manually, or by
+  // closeStaleLeads()'s 7-day timeout) means they came back — reopen it
+  // rather than leaving the conversation running against a dead lead.
+  if (ctx.enquiry.status === "closed") {
+    await svc.from("enquiries").update({ status: "contacted" }).eq("id", enquiryId);
+    await logLeadEvent(enquiryId, "lead_reopened", "system", { reason: "buyer_replied" });
+  }
+
   const outcome = await runQualifyTurn(ctx, buyerMessage);
   return completeTurn(svc, ctx, outcome, "ai_message_sent");
 }

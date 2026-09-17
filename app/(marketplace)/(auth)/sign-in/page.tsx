@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Sign in" };
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; deleted?: string }>;
+  searchParams: Promise<{ error?: string; deleted?: string; next?: string }>;
 }) {
   const params = await searchParams;
 
@@ -28,7 +28,7 @@ export default async function SignInPage({
         </p>
       ) : null}
       <div className="mt-6">
-        <AuthForm mode="sign-in" />
+        <AuthForm mode="sign-in" next={params.next} />
       </div>
       <p className="mt-4 text-sm text-slate-500">
         <Link href="/forgot-password" className="rounded text-slate-900 underline">

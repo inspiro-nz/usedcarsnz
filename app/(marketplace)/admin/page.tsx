@@ -5,7 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import type { DealerRow } from "@/lib/db/types";
 import { timeNZ } from "@/lib/format";
 import { Badge, Empty } from "@/components/marketplace/ui";
-import { approveDealerAction, rejectDealerAction } from "./actions";
+import { approveDealerAction, reactivateDealerAction, rejectDealerAction, suspendDealerAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin" };
@@ -82,6 +82,7 @@ export default async function AdminPage() {
                 <th className="px-4 py-3">NZBN</th>
                 <th className="px-4 py-3">City</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -91,9 +92,36 @@ export default async function AdminPage() {
                   <td className="tabular-nums px-4 py-3 text-xs">{d.nzbn ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-700">{d.city ?? "—"}</td>
                   <td className="px-4 py-3">
-                    <Badge tone={d.status === "approved" ? "ok" : d.status === "pending" ? "pending" : "neutral"}>
+                    <Badge
+                      tone={
+                        d.status === "approved"
+                          ? "ok"
+                          : d.status === "pending"
+                            ? "pending"
+                            : d.status === "suspended" || d.status === "rejected"
+                              ? "danger"
+                              : "neutral"
+                      }
+                    >
                       {d.status}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {d.status === "approved" ? (
+                      <form action={suspendDealerAction}>
+                        <input type="hidden" name="dealer_id" value={d.id} />
+                        <button className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50">
+                          Suspend
+                        </button>
+                      </form>
+                    ) : d.status === "suspended" ? (
+                      <form action={reactivateDealerAction}>
+                        <input type="hidden" name="dealer_id" value={d.id} />
+                        <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900">
+                          Reactivate
+                        </button>
+                      </form>
+                    ) : null}
                   </td>
                 </tr>
               ))}

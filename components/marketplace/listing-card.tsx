@@ -8,7 +8,16 @@ import { Badge } from "@/components/marketplace/ui";
  * visual is an honest plate: make/model monogram on a slate-900 panel — the
  * same dark panel the homepage hero uses.
  */
-export function ListingCard({ listing }: { listing: ListingRow }) {
+export function ListingCard({
+  listing,
+  dealerName,
+}: {
+  listing: ListingRow;
+  /** Business name of the owning dealer, when known — surfaced on the card so
+   *  buyers can see who a car is from. Plain text (the whole card is already a
+   *  link to the listing; the dealer profile is reachable from the detail page). */
+  dealerName?: string | null;
+}) {
   const monogram =
     `${listing.make[0] ?? ""}${listing.model[0] ?? ""}`.toUpperCase();
   return (
@@ -16,7 +25,9 @@ export function ListingCard({ listing }: { listing: ListingRow }) {
       href={listingPath(listing)}
       className="group block overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all hover:border-orange-100 hover:shadow-md"
     >
-      <div className="flex h-36 items-center justify-center bg-slate-900">
+      {/* Fixed 16:10 aspect box so the grid never reflows once real photos land
+          (zero CLS) — the skeleton card uses the same ratio. */}
+      <div className="flex aspect-[16/10] items-center justify-center bg-slate-900">
         <span className="text-4xl font-bold text-white/60">{monogram}</span>
       </div>
       <div className="space-y-2 p-4">
@@ -41,6 +52,9 @@ export function ListingCard({ listing }: { listing: ListingRow }) {
             <Badge>Private</Badge>
           )}
         </div>
+        {listing.seller_type === "dealer" && dealerName ? (
+          <p className="truncate pt-0.5 text-xs text-slate-500">{dealerName}</p>
+        ) : null}
       </div>
     </Link>
   );

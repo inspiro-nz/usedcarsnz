@@ -1,4 +1,12 @@
-import { navLinks } from '@/lib/nav'
+import Link from "next/link"
+import { navLinks } from "@/lib/nav"
+
+const platformLinks = [
+  { href: '/cars', label: 'Browse cars' },
+  { href: '/metrics', label: 'The number we publish' },
+  { href: '/sign-in', label: 'Dealer sign in' },
+  { href: '/privacy', label: 'Privacy' },
+]
 
 export default function Footer() {
   const year = new Date().getFullYear()
@@ -12,14 +20,14 @@ export default function Footer() {
               UsedCars<span className="text-orange-500">NZ</span>
             </a>
             <p className="text-sm leading-relaxed">
-              Helping Kiwi dealerships respond faster and capture more sales
-              opportunities before the competition does.
+              Keep your Trade Me listing, add us. Every enquiry answered in under a
+              minute, qualified, handed to you warm, and measured.
             </p>
           </div>
 
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Navigation
+              On this page
             </p>
             <nav className="flex flex-col gap-2.5">
               {navLinks.map((link) => (
@@ -36,6 +44,23 @@ export default function Footer() {
 
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Platform
+            </p>
+            <nav className="flex flex-col gap-2.5">
+              {platformLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm hover:text-white transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Program
             </p>
             <a
@@ -44,12 +69,12 @@ export default function Footer() {
             >
               Join the Founding Dealer Program
             </a>
-            <p className="text-sm">New Zealand dealerships welcome</p>
+            <p className="text-sm">Free two-month pilot. Christchurch first.</p>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <p>&copy; {year} UsedCarsNZ. All rights reserved.</p>
+          <p>&copy; {year} UsedCarsNZ, a product of Inspiral NZ Ltd. All rights reserved.</p>
           <p>Built for New Zealand dealerships.</p>
         </div>
       </div>

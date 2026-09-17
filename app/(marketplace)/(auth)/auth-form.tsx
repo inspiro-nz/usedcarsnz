@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { ErrorNote, Field, inputCls } from "@/components/marketplace/ui";
 
-export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
+export function AuthForm({
+  mode,
+  next,
+}: {
+  mode: "sign-in" | "sign-up";
+  /** Optional in-app return-to, forwarded to the role router on success. */
+  next?: string;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +42,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) setError(error.message);
         else {
-          router.push("/");
+          // Route through the server-side role router so a dealer lands on
+          // their dashboard, a buyer on their account — never the marketing
+          // page. `next` (if any) is validated there, not trusted here.
+          router.push(next ? `/home?next=${encodeURIComponent(next)}` : "/home");
           router.refresh();
         }
       }

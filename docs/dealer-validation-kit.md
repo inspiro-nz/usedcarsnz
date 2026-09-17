@@ -1,6 +1,6 @@
 # UsedCarsNZ Dealer Discovery Kit
 
-> Purpose: Validate the core assumptions behind UsedCarsNZ before building:
+> Purpose: Validate the core assumptions behind UsedCarsNZ (originally written pre-build; the product now exists — see the historical note before the success criteria):
 >
 > - Will dealers trial a second platform?
 > - Is response-time pain real?
@@ -16,7 +16,7 @@
 
 Hi, I'm researching a new platform for NZ car dealers.
 
-Nothing is built yet and I'm not selling anything today.
+I've built a working version I can show you — but today I'm here to listen, not sell.
 
 I'm trying to understand how dealers currently manage leads, what frustrates them about Trade Me, and whether faster lead response would actually help.
 
@@ -187,13 +187,29 @@ Would you trial it?
 
 ---
 
-## Closing Question
+## Closing Questions
 
-### Q19. If I built a prototype, could I come back and show it to you?
+### Q19. Would you like to see the working demo (two minutes), and could I come back for a proper walkthrough?
 
 - Yes
 - Maybe
 - No
+
+### Q20. THE FORCING QUESTION — ask this before you leave, every time, verbatim
+
+> *"Would you pay for this as a tool that answers your existing Trade Me leads — even if no buyer ever visits our site — for something like $150 a month?"*
+
+This question resolves the marketplace-primary vs tool-first strategy fork
+(Strategy v5.7, Executive Summary — the decision rule needs all five answers).
+The price anchor is deliberate: a price-free "would you pay" harvests cheap
+yeses. Record the answer immediately, while it is verbatim:
+
+| Field | Capture |
+|---|---|
+| Answer | Yes / No / Conditional |
+| Price reaction | e.g. "fine", "half that", "only per sale", flinch |
+| Reason — VERBATIM | their exact words, not your summary |
+| Would pay for reach instead? | did they say the marketplace/audience is what they'd pay for? |
 
 ---
 
@@ -495,7 +511,11 @@ Track results across all interviews.
 
 # Phase 0 Success Criteria
 
-Proceed to MVP build if:
+*(Historical note: this kit predates the build — the product is now built and
+the demo exists. The criteria below now gate proceeding to the PILOT, not an
+MVP build.)*
+
+Proceed to the pilot if:
 
 - 4/5 dealers report meaningful Trade Me frustration.
 - 3/5 dealers acknowledge slow response loses sales.
